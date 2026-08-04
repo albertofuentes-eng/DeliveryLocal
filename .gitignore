@@ -1,0 +1,23 @@
+# Visual Studio Code
+.vscode/
+
+# Node
+node_modules/
+
+# Expo
+.expo/
+dist/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
