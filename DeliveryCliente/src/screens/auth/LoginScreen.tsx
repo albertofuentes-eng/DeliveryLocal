@@ -6,9 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
+
+import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 export default function LoginScreen() {
+
+  const navigation = useNavigation<any>();
+
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
 
@@ -53,13 +58,19 @@ export default function LoginScreen() {
         />
       </View>
 
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>
-          Iniciar sesión
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.replace("Main")}
+>
 
-      <TouchableOpacity>
+  <Text style={styles.buttonText}>
+    Iniciar sesión
+  </Text>
+</TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => navigation.navigate("Register")}
+      >
         <Text style={styles.register}>
           Crear cuenta
         </Text>
