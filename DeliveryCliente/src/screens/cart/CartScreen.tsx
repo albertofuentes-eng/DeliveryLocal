@@ -8,9 +8,14 @@ import {
   Alert,
 } from "react-native";
 
+import { useNavigation } from "@react-navigation/native";
+
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
 
 export default function CartScreen() {
+  const navigation = useNavigation<any>();
+
   const {
     carrito,
     aumentarCantidad,
@@ -22,33 +27,47 @@ export default function CartScreen() {
     total,
   } = useCart();
 
+  const { token } = useAuth();
+
   function realizarPedido() {
     if (carrito.length === 0) {
       Alert.alert(
         "Carrito vacío",
         "Agrega al menos un producto antes de realizar el pedido."
       );
+
       return;
     }
 
-    Alert.alert(
-      "Realizar pedido",
-      `Tu pedido tiene un total de Q ${total.toFixed(2)}.\n\n¿Deseas continuar?`,
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Continuar",
-          onPress: () => {
-            Alert.alert(
-              "Pedido preparado",
-              "El pedido está listo para enviarse al servidor."
-            );
-          },
-        },
-      ]
+    if (!token) {
+      Alert.alert(
+        "Sesión requerida",
+        "Debes iniciar sesión para realizar un pedido."
+      );
+
+      return;
+    }
+
+    const comercioId =
+      carrito[0].comercioId;
+
+    const productosDeOtroComercio =
+      carrito.some(
+        (item) =>
+          item.comercioId !== comercioId
+      );
+
+    if (productosDeOtroComercio) {
+      Alert.alert(
+        "Pedido inválido",
+        "Todos los productos deben pertenecer al mismo comercio."
+      );
+
+      return;
+    }
+
+    navigation.navigate(
+      "DeliveryLocation"
     );
   }
 
@@ -76,13 +95,19 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🛒 Mi carrito</Text>
+      <Text style={styles.title}>
+        🛒 Mi carrito
+      </Text>
 
       <FlatList
         data={carrito}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) =>
+          item.id.toString()
+        }
         contentContainerStyle={
-          carrito.length === 0 ? styles.emptyContainer : styles.list
+          carrito.length === 0
+            ? styles.emptyContainer
+            : styles.list
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
@@ -93,7 +118,7 @@ export default function CartScreen() {
           <View style={styles.card}>
             <View style={styles.productInfo}>
               <Text style={styles.name}>
-                {item.imagen} {item.nombre}
+                {item.nombre}
               </Text>
 
               <Text style={styles.price}>
@@ -104,9 +129,17 @@ export default function CartScreen() {
             <View style={styles.controls}>
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => disminuirCantidad(item.id)}
+                onPress={() =>
+                  disminuirCantidad(item.id)
+                }
               >
-                <Text style={styles.quantityButtonText}>−</Text>
+                <Text
+                  style={
+                    styles.quantityButtonText
+                  }
+                >
+                  −
+                </Text>
               </TouchableOpacity>
 
               <Text style={styles.quantity}>
@@ -115,26 +148,52 @@ export default function CartScreen() {
 
               <TouchableOpacity
                 style={styles.quantityButton}
-                onPress={() => aumentarCantidad(item.id)}
+                onPress={() =>
+                  aumentarCantidad(item.id)
+                }
               >
-                <Text style={styles.quantityButtonText}>+</Text>
+                <Text
+                  style={
+                    styles.quantityButtonText
+                  }
+                >
+                  +
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => eliminarProducto(item.id)}
+                onPress={() =>
+                  eliminarProducto(item.id)
+                }
               >
-                <Text style={styles.deleteText}>🗑️</Text>
+                <Text style={styles.deleteText}>
+                  🗑️
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.itemTotalContainer}>
-              <Text style={styles.itemTotalLabel}>
+            <View
+              style={
+                styles.itemTotalContainer
+              }
+            >
+              <Text
+                style={
+                  styles.itemTotalLabel
+                }
+              >
                 Total del producto
               </Text>
 
-              <Text style={styles.itemTotal}>
-                Q {(item.precio * item.cantidad).toFixed(2)}
+              <Text
+                style={styles.itemTotal}
+              >
+                Q{" "}
+                {(
+                  item.precio *
+                  item.cantidad
+                ).toFixed(2)}
               </Text>
             </View>
           </View>
@@ -143,37 +202,67 @@ export default function CartScreen() {
 
       {carrito.length > 0 && (
         <View style={styles.footer}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={styles.summaryLabel}
+            >
+              Subtotal
+            </Text>
 
-            <Text style={styles.summaryValue}>
+            <Text
+              style={styles.summaryValue}
+            >
               Q {subtotal.toFixed(2)}
             </Text>
           </View>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Envío</Text>
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={styles.summaryLabel}
+            >
+              Envío
+            </Text>
 
-            <Text style={styles.summaryValue}>
+            <Text
+              style={styles.summaryValue}
+            >
               Q {envio.toFixed(2)}
             </Text>
           </View>
 
           <View style={styles.separator} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={styles.totalLabel}
+            >
+              Total
+            </Text>
 
-            <Text style={styles.totalValue}>
+            <Text
+              style={styles.totalValue}
+            >
               Q {total.toFixed(2)}
             </Text>
           </View>
 
           <TouchableOpacity
             style={styles.clearButton}
-            onPress={confirmarVaciarCarrito}
+            onPress={
+              confirmarVaciarCarrito
+            }
           >
-            <Text style={styles.clearButtonText}>
+            <Text
+              style={
+                styles.clearButtonText
+              }
+            >
               🧹 Vaciar carrito
             </Text>
           </TouchableOpacity>
@@ -182,7 +271,11 @@ export default function CartScreen() {
             style={styles.orderButton}
             onPress={realizarPedido}
           >
-            <Text style={styles.orderButtonText}>
+            <Text
+              style={
+                styles.orderButtonText
+              }
+            >
               REALIZAR PEDIDO
             </Text>
           </TouchableOpacity>

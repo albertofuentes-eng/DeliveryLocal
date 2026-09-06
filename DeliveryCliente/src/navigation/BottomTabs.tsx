@@ -2,54 +2,21 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import HomeScreen from "../screens/home/HomeScreen";
-
-import { View, Text } from "react-native";
+import CartScreen from "../screens/cart/CartScreen";
+import ProfileScreen from "../screens/profile/ProfileScreen";
 
 import { useCart } from "../context/CartContext";
 
-import CartScreen from "../screens/cart/CartScreen";
-
 const Tab = createBottomTabNavigator();
 
-function CarritoScreen() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Carrito</Text>
-    </View>
-  );
-}
-
-function PerfilScreen() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Perfil</Text>
-    </View>
-  );
-}
-
 export default function BottomTabs() {
-
-const { totalItems } = useCart();
+  const { totalItems } = useCart();
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-
         tabBarActiveTintColor: "#E53935",
-
         tabBarInactiveTintColor: "gray",
 
         tabBarIcon: ({ color, size }) => {
@@ -78,14 +45,18 @@ const { totalItems } = useCart();
         component={HomeScreen}
       />
 
-   <Tab.Screen
-  name="Carrito"
-  component={CartScreen}
-/>
+      <Tab.Screen
+        name="Carrito"
+        component={CartScreen}
+        options={{
+          tabBarBadge:
+            totalItems > 0 ? totalItems : undefined,
+        }}
+      />
 
       <Tab.Screen
         name="Perfil"
-        component={PerfilScreen}
+        component={ProfileScreen}
       />
     </Tab.Navigator>
   );

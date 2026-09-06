@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ScrollView,
   Text,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
@@ -11,14 +12,43 @@ import { useNavigation } from "@react-navigation/native";
 import SearchBar from "../../components/SearchBar";
 import CategoryCard from "../../components/CategoryCard";
 import RestaurantCard from "../../components/RestaurantCard";
+import { obtenerComercios } from "../../services/api";
+
+type Comercio = {
+  id: number;
+  nombre: string;
+  descripcion?: string | null;
+  direccion: string;
+  telefono?: string | null;
+  imagenUrl?: string | null;
+  activo: boolean;
+};
 
 export default function HomeScreen() {
-
   const navigation = useNavigation<any>();
+
+  const [comercios, setComercios] = useState<Comercio[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function cargarComercios() {
+      try {
+        const data = await obtenerComercios();
+        setComercios(data);
+      } catch (error) {
+        console.log(error);
+        setError("No se pudieron cargar los comercios.");
+      } finally {
+        setCargando(false);
+      }
+    }
+
+    cargarComercios();
+  }, []);
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.location}>
         📍 Entregar en
       </Text>
@@ -41,70 +71,49 @@ export default function HomeScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
       >
-
         <CategoryCard emoji="🍕" nombre="Pizza" />
         <CategoryCard emoji="🍔" nombre="Hamburguesas" />
         <CategoryCard emoji="🌮" nombre="Tacos" />
         <CategoryCard emoji="🍗" nombre="Pollo" />
         <CategoryCard emoji="☕" nombre="Café" />
-
       </ScrollView>
 
       <Text style={styles.section}>
         Restaurantes populares
       </Text>
 
-      <TouchableOpacity
-  onPress={() =>
-    navigation.navigate("Restaurant", {
-      nombre: "Pizza Hut",
-    })
-  }
->
-  <RestaurantCard
-    nombre="Pizza Hut"
-    estrellas="4.8"
-    tiempo="30-40 min"
-  />
-</TouchableOpacity>
+      {cargando && (
+        <ActivityIndicator size="large" />
+      )}
 
-      
-      <TouchableOpacity
-  onPress={() =>
-    navigation.navigate("Restaurant", {
-      nombre: "Pollo Campero",
-    })
-  }
->
-  <RestaurantCard
-    nombre="Pollo Campero"
-    estrellas="4.9"
-    tiempo="20-30 min"
-  />
-</TouchableOpacity>
+      {error !== "" && (
+        <Text style={styles.error}>
+          {error}
+        </Text>
+      )}
 
-
-      <TouchableOpacity
-  onPress={() =>
-    navigation.navigate("Restaurant", {
-      nombre: "McDonald's",
-    })
-  }
->
-  <RestaurantCard
-    nombre="McDonald's"
-    estrellas="4.7"
-    tiempo="25-35 min"
-  />
-</TouchableOpacity>
-
-
+      {comercios.map((comercio) => (
+        <TouchableOpacity
+          key={comercio.id}
+          onPress={() =>
+            navigation.navigate("Restaurant", {
+              comercioId: comercio.id,
+              nombre: comercio.nombre,
+            })
+          }
+        >
+          <RestaurantCard
+            nombre={comercio.nombre}
+            estrellas="4.8"
+            tiempo="30-40 min"
+          />
+        </TouchableOpacity>
+      ))}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: "#F8F8F8",
@@ -136,4 +145,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
 
+  error: {
+    color: "#E53935",
+    marginBottom: 15,
+  },
 });

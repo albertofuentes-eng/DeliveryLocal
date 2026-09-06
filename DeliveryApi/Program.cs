@@ -18,6 +18,20 @@ builder.Services.AddDbContext<DeliveryDbContext>(options =>
     )
 );
 
+// =========================
+// CORS PARA DELIVERY POS
+// =========================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DeliveryPosPolicy", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 // Servicio para generar JWT
 builder.Services.AddScoped<JwtService>();
 
@@ -91,6 +105,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// =========================
+// CORS
+// =========================
+app.UseCors("DeliveryPosPolicy");
 
 // JWT
 app.UseAuthentication();

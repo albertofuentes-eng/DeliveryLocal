@@ -3,6 +3,8 @@ export interface Producto {
   nombre: string;
   descripcion: string;
   precio: number;
-  imagen: string;
-  restaurante: string;
+  imagenUrl?: string | null;
+  disponible: boolean;
+  comercioId: number;
+  categoriaId: number;
 }

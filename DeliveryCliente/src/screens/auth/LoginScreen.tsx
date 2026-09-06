@@ -5,21 +5,59 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useAuth } from "../../context/AuthContext";
 
 export default function LoginScreen() {
-
   const navigation = useNavigation<any>();
+
+  const { iniciarSesion } = useAuth();
 
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [cargando, setCargando] = useState(false);
+
+  async function handleLogin() {
+    if (!correo.trim() || !password.trim()) {
+      Alert.alert(
+        "Datos incompletos",
+        "Ingresa tu correo y contraseña."
+      );
+      return;
+    }
+
+    try {
+      setCargando(true);
+
+      await iniciarSesion(
+        correo.trim(),
+        password
+      );
+
+      Alert.alert(
+        "Bienvenido",
+        "Inicio de sesión correcto."
+      );
+
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.message || "No se pudo iniciar sesión."
+      );
+    } finally {
+      setCargando(false);
+    }
+
+  }
 
   return (
     <View style={styles.container}>
-
       <Text style={styles.title}>Delivery Local</Text>
 
       <Text style={styles.subtitle}>
@@ -39,6 +77,8 @@ export default function LoginScreen() {
           style={styles.input}
           value={correo}
           onChangeText={setCorreo}
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
       </View>
 
@@ -51,37 +91,57 @@ export default function LoginScreen() {
 
         <TextInput
           placeholder="Contraseña"
-          secureTextEntry
+          secureTextEntry={!mostrarPassword}
           style={styles.input}
           value={password}
           onChangeText={setPassword}
         />
-      </View>
 
         <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.replace("Main")}
->
-
-  <Text style={styles.buttonText}>
-    Iniciar sesión
-  </Text>
-</TouchableOpacity>
+          onPress={() =>
+            setMostrarPassword(!mostrarPassword)
+          }
+        >
+          <MaterialIcons
+            name={
+              mostrarPassword
+                ? "visibility-off"
+                : "visibility"
+            }
+            size={22}
+            color="#777"
+          />
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate("Register")}
+        style={styles.button}
+        onPress={handleLogin}
+        disabled={cargando}
+      >
+        {cargando ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>
+            Iniciar sesión
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() =>
+          navigation.navigate("Register")
+        }
       >
         <Text style={styles.register}>
           Crear cuenta
         </Text>
       </TouchableOpacity>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     justifyContent: "center",
@@ -142,5 +202,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-
 });

@@ -17,4 +17,9 @@ public class Usuario
     public bool Activo { get; set; } = true;
 
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+    // Solo aplica a usuarios con Rol = Comercio
+    public int? ComercioId { get; set; }
+
+    public Comercio? Comercio { get; set; }
 }
