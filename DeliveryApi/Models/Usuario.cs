@@ -22,4 +22,12 @@ public class Usuario
     public int? ComercioId { get; set; }
 
     public Comercio? Comercio { get; set; }
+
+    public Repartidor? Repartidor { get; set; }
+
+    public ICollection<SolicitudRepartidor> SolicitudesRepartidor { get; set; }
+        = new List<SolicitudRepartidor>();
+
+    public ICollection<SolicitudRepartidor> SolicitudesRepartidorRevisadas { get; set; }
+        = new List<SolicitudRepartidor>();
 }

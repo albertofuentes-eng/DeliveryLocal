@@ -10,6 +10,10 @@ public class Pedido
     public int ComercioId { get; set; }
     public Comercio Comercio { get; set; } = null!;
 
+    public int? RepartidorId { get; set; }
+
+    public Repartidor? Repartidor { get; set; }
+
     public DateTime Fecha { get; set; } = DateTime.UtcNow;
 
     public string Estado { get; set; } = "Pendiente";

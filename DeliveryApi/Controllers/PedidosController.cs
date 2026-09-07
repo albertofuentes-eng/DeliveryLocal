@@ -700,6 +700,9 @@ public class PedidosController : ControllerBase
     // =========================
     // PUT: api/Pedidos/5/estado
     // =========================
+    // =========================
+    // PUT: api/Pedidos/5/estado
+    // =========================
     [HttpPut("{id:int}/estado")]
     public async Task<IActionResult> ActualizarEstado(
         int id,
@@ -718,7 +721,8 @@ public class PedidosController : ControllerBase
         {
             return Unauthorized(new
             {
-                mensaje = "Usuario no válido."
+                mensaje =
+                    "Usuario no válido."
             });
         }
 
@@ -726,18 +730,24 @@ public class PedidosController : ControllerBase
             await _context.Usuarios
                 .FirstOrDefaultAsync(u =>
                     u.Id == usuarioId &&
-                    u.Activo);
+                    u.Activo
+                );
 
         if (usuario == null)
         {
             return Unauthorized(new
             {
-                mensaje = "Usuario no encontrado."
+                mensaje =
+                    "Usuario no encontrado."
             });
         }
 
-        // Solo Comercio y Administrador
-        // pueden cambiar estados.
+        // Este endpoint lo usan
+        // Comercio y Administrador.
+        //
+        // Los estados propios del repartidor
+        // se controlan además desde
+        // RepartidoresController.
         if (
             usuario.Rol != "Comercio" &&
             usuario.Rol != "Administrador"
@@ -753,6 +763,8 @@ public class PedidosController : ControllerBase
             );
         }
 
+        // Todos los estados reconocidos
+        // actualmente por DeliveryLocal.
         var estadosPermitidos = new[]
         {
             "Pendiente",
@@ -760,6 +772,7 @@ public class PedidosController : ControllerBase
             "Preparando",
             "Listo para recoger",
             "Asignado a repartidor",
+            "Recogido",
             "En camino",
             "Entregado",
             "Cancelado",
@@ -779,9 +792,9 @@ public class PedidosController : ControllerBase
 
         Pedido? pedido;
 
-        // Si es usuario de Comercio,
-        // solo puede modificar pedidos
-        // de SU propio comercio.
+        // =========================
+        // COMERCIO
+        // =========================
         if (usuario.Rol == "Comercio")
         {
             if (usuario.ComercioId == null)
@@ -798,28 +811,36 @@ public class PedidosController : ControllerBase
                     .FirstOrDefaultAsync(p =>
                         p.Id == id &&
                         p.ComercioId ==
-                        usuario.ComercioId.Value);
+                            usuario.ComercioId.Value
+                    );
         }
+
+        // =========================
+        // ADMINISTRADOR
+        // =========================
         else
         {
-            // Administrador de DeliveryLocal
-            // puede consultar cualquier pedido.
             pedido =
                 await _context.Pedidos
                     .FirstOrDefaultAsync(p =>
-                        p.Id == id);
+                        p.Id == id
+                    );
         }
 
         if (pedido == null)
-{
-    return NotFound(new
-    {
-        mensaje =
-            "Pedido no encontrado o no pertenece a este comercio."
-    });
-}
+        {
+            return NotFound(new
+            {
+                mensaje =
+                    "Pedido no encontrado o no pertenece a este comercio."
+            });
+        }
 
-            var transicionesPermitidas = new Dictionary<string, string[]>
+        // =========================
+        // REGLAS DE TRANSICIÓN
+        // =========================
+        var transicionesPermitidas =
+            new Dictionary<string, string[]>
             {
                 {
                     "Pendiente",
@@ -829,6 +850,7 @@ public class PedidosController : ControllerBase
                         "Rechazado"
                     }
                 },
+
                 {
                     "Confirmado",
                     new[]
@@ -837,6 +859,7 @@ public class PedidosController : ControllerBase
                         "Rechazado"
                     }
                 },
+
                 {
                     "Preparando",
                     new[]
@@ -844,25 +867,39 @@ public class PedidosController : ControllerBase
                         "Listo para recoger"
                     }
                 },
+
                 {
                     "Listo para recoger",
+
                     pedido.TipoEntrega == "Recoger"
+
                         ? new[]
                         {
                             "Entregado"
                         }
+
                         : new[]
                         {
                             "Asignado a repartidor"
                         }
                 },
+
                 {
                     "Asignado a repartidor",
+                    new[]
+                    {
+                        "Recogido"
+                    }
+                },
+
+                {
+                    "Recogido",
                     new[]
                     {
                         "En camino"
                     }
                 },
+
                 {
                     "En camino",
                     new[]
@@ -870,45 +907,54 @@ public class PedidosController : ControllerBase
                         "Entregado"
                     }
                 },
+
                 {
                     "Entregado",
                     Array.Empty<string>()
                 },
+
                 {
                     "Rechazado",
                     Array.Empty<string>()
                 },
+
                 {
                     "Cancelado",
                     Array.Empty<string>()
                 }
             };
 
-            if (!transicionesPermitidas.TryGetValue(
+        if (
+            !transicionesPermitidas.TryGetValue(
                 pedido.Estado,
                 out var siguientesEstados
-            ))
+            )
+        )
+        {
+            return BadRequest(new
             {
-                return BadRequest(new
-                {
-                    mensaje =
-                        $"El estado actual '{pedido.Estado}' no es válido."
-                });
-            }
+                mensaje =
+                    $"El estado actual '{pedido.Estado}' no es válido."
+            });
+        }
 
-            if (!siguientesEstados.Contains(dto.Estado))
+        if (
+            !siguientesEstados.Contains(
+                dto.Estado
+            )
+        )
+        {
+            return BadRequest(new
             {
-                return BadRequest(new
-                {
-                    mensaje =
-                        $"No se puede cambiar de '{pedido.Estado}' a '{dto.Estado}'."
-                });
-            }
+                mensaje =
+                    $"No se puede cambiar de '{pedido.Estado}' a '{dto.Estado}'."
+            });
+        }
 
-            pedido.Estado =
-                dto.Estado;
+        pedido.Estado =
+            dto.Estado;
 
-            await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         return Ok(new
         {
@@ -920,7 +966,4 @@ public class PedidosController : ControllerBase
         });
     }
 
-
-
-    
 }

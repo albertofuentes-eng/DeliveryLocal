@@ -5,7 +5,9 @@ namespace DeliveryApi.Data;
 
 public class DeliveryDbContext : DbContext
 {
-    public DeliveryDbContext(DbContextOptions<DeliveryDbContext> options)
+    public DeliveryDbContext(
+        DbContextOptions<DeliveryDbContext> options
+    )
         : base(options)
     {
     }
@@ -17,7 +19,17 @@ public class DeliveryDbContext : DbContext
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<DetallePedido> DetallesPedido => Set<DetallePedido>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    // NUEVO
+    public DbSet<SolicitudRepartidor> SolicitudesRepartidor
+        => Set<SolicitudRepartidor>();
+
+    // NUEVO
+    public DbSet<Repartidor> Repartidores
+        => Set<Repartidor>();
+
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
     {
         base.OnModelCreating(modelBuilder);
 
@@ -56,6 +68,14 @@ public class DeliveryDbContext : DbContext
                 .WithMany(c => c.Usuarios)
                 .HasForeignKey(u => u.ComercioId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Usuario 1 - 1 Repartidor
+            entity.HasOne(u => u.Repartidor)
+                .WithOne(r => r.Usuario)
+                .HasForeignKey<Repartidor>(
+                    r => r.UsuarioId
+                )
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // =========================
@@ -86,8 +106,9 @@ public class DeliveryDbContext : DbContext
                 .HasDefaultValue(true);
         });
 
-                // =========================
-
+        // =========================
+        // CATEGORIA
+        // =========================
         modelBuilder.Entity<Categoria>(entity =>
         {
             entity.HasKey(c => c.Id);
@@ -105,6 +126,9 @@ public class DeliveryDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // =========================
+        // PRODUCTO
+        // =========================
         modelBuilder.Entity<Producto>(entity =>
         {
             entity.HasKey(p => p.Id);
@@ -136,6 +160,9 @@ public class DeliveryDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // =========================
+        // PEDIDO
+        // =========================
         modelBuilder.Entity<Pedido>(entity =>
         {
             entity.HasKey(p => p.Id);
@@ -190,8 +217,18 @@ public class DeliveryDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(p => p.ComercioId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // NUEVO:
+            // Pedido puede no tener repartidor todavía
+            entity.HasOne(p => p.Repartidor)
+                .WithMany(r => r.Pedidos)
+                .HasForeignKey(p => p.RepartidorId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // =========================
+        // DETALLE PEDIDO
+        // =========================
         modelBuilder.Entity<DetallePedido>(entity =>
         {
             entity.HasKey(d => d.Id);
@@ -212,6 +249,76 @@ public class DeliveryDbContext : DbContext
                 .HasForeignKey(d => d.ProductoId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
-        
+
+        // =========================
+        // SOLICITUD REPARTIDOR
+        // =========================
+        modelBuilder.Entity<SolicitudRepartidor>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+
+            entity.Property(s => s.TipoVehiculo)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(s => s.Placa)
+                .HasMaxLength(30);
+
+            entity.Property(s => s.Estado)
+                .HasMaxLength(20)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(s => s.Observacion)
+                .HasMaxLength(500);
+
+            // Usuario que solicita ser repartidor
+            entity.HasOne(s => s.Usuario)
+                .WithMany(u => u.SolicitudesRepartidor)
+                .HasForeignKey(s => s.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Administrador que revisa
+            entity.HasOne(s => s.RevisadoPorUsuario)
+                .WithMany(
+                    u => u.SolicitudesRepartidorRevisadas
+                )
+                .HasForeignKey(
+                    s => s.RevisadoPorUsuarioId
+                )
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // =========================
+        // REPARTIDOR
+        // =========================
+        modelBuilder.Entity<Repartidor>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+
+            // Cada usuario solo puede tener
+            // un perfil de repartidor
+            entity.HasIndex(r => r.UsuarioId)
+                .IsUnique();
+
+            entity.Property(r => r.TipoVehiculo)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(r => r.Placa)
+                .HasMaxLength(30);
+
+            entity.Property(r => r.Disponible)
+                .HasDefaultValue(false);
+
+            entity.Property(r => r.Activo)
+                .HasDefaultValue(true);
+
+            entity.Property(r => r.LatitudActual)
+                .HasColumnType("decimal(10,7)");
+
+            entity.Property(r => r.LongitudActual)
+                .HasColumnType("decimal(10,7)");
+        });
     }
 }
