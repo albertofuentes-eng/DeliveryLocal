@@ -16,6 +16,8 @@ public class Pedido
 
     public DateTime Fecha { get; set; } = DateTime.UtcNow;
 
+    public DateTime? FechaEntrega { get; set; }
+
     public string Estado { get; set; } = "Pendiente";
 
     // Tipo de entrega:

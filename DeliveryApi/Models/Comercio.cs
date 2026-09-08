@@ -23,6 +23,11 @@ public class Comercio
     [MaxLength(500)]
     public string? ImagenUrl { get; set; }
 
+    // Ubicación física del comercio
+    public decimal? Latitud { get; set; }
+
+    public decimal? Longitud { get; set; }
+
     public bool Activo { get; set; } = true;
 
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;

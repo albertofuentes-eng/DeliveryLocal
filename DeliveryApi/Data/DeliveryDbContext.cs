@@ -78,6 +78,14 @@ public class DeliveryDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Comercio>()
+            .Property(c => c.Latitud)
+            .HasPrecision(10, 7);
+
+        modelBuilder.Entity<Comercio>()
+            .Property(c => c.Longitud)
+            .HasPrecision(10, 7);
+
         // =========================
         // COMERCIO
         // =========================
@@ -320,5 +328,7 @@ public class DeliveryDbContext : DbContext
             entity.Property(r => r.LongitudActual)
                 .HasColumnType("decimal(10,7)");
         });
+
+        
     }
 }

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -17,8 +18,21 @@ import {
   SafeAreaView,
 } from "react-native-safe-area-context";
 
+import {
+  useFocusEffect,
+  useNavigation,
+} from "@react-navigation/native";
+
+import type {
+  NativeStackNavigationProp,
+} from "@react-navigation/native-stack";
+
 import * as Location
   from "expo-location";
+
+import type {
+  RootStackParamList,
+} from "../../navigation/AppNavigator";
 
 import {
   useAuth,
@@ -29,11 +43,22 @@ import {
   actualizarUbicacion,
   obtenerMiPerfil,
   obtenerPedidosDisponibles,
+  obtenerMiPedido,
   type PedidoDisponible,
+  type DetallePedidoRepartidor,
   type PerfilRepartidor,
 } from "../../services/api";
 
+type HomeNavigation =
+  NativeStackNavigationProp<
+    RootStackParamList,
+    "Home"
+  >;
+
 export default function HomeScreen() {
+  const navigation =
+    useNavigation<HomeNavigation>();
+
   const {
     usuario,
     token,
@@ -46,6 +71,14 @@ export default function HomeScreen() {
   ] = useState<PerfilRepartidor | null>(
     null
   );
+
+  const [
+    pedidoActivo,
+    setPedidoActivo,
+  ] =
+    useState<DetallePedidoRepartidor | null>(
+      null
+    );
 
   const [
     pedidos,
@@ -76,13 +109,24 @@ export default function HomeScreen() {
     cargarInicio();
   }, []);
 
-  async function cargarInicio() {
+  useFocusEffect(
+    useCallback(() => {
+      cargarInicio(false);
+    }, [token])
+  );
+
+  async function cargarInicio(
+    mostrarCarga = true
+  ) {
     if (!token) {
       return;
     }
 
     try {
-      setCargando(true);
+      if (mostrarCarga) {
+        setCargando(true);
+      }
+
       setMensaje("");
 
       const perfilData =
@@ -92,7 +136,17 @@ export default function HomeScreen() {
 
       setPerfil(perfilData);
 
-      if (perfilData.disponible) {
+      const activo =
+        await obtenerMiPedido(
+          token
+        );
+
+      setPedidoActivo(activo);
+
+      if (
+        perfilData.disponible &&
+        !activo
+      ) {
         await cargarPedidos();
       } else {
         setPedidos([]);
@@ -103,7 +157,9 @@ export default function HomeScreen() {
           "No se pudo cargar la información."
       );
     } finally {
-      setCargando(false);
+      if (mostrarCarga) {
+        setCargando(false);
+      }
     }
   }
 
@@ -113,7 +169,8 @@ export default function HomeScreen() {
     }
 
     const permisos =
-      await Location.requestForegroundPermissionsAsync();
+      await Location
+        .requestForegroundPermissionsAsync();
 
     if (
       permisos.status !== "granted"
@@ -126,21 +183,16 @@ export default function HomeScreen() {
     }
 
     const ubicacion =
-      await Location.getCurrentPositionAsync({
-        accuracy:
-          Location.Accuracy.High,
-      });
-
-    const latitud =
-      ubicacion.coords.latitude;
-
-    const longitud =
-      ubicacion.coords.longitude;
+      await Location
+        .getCurrentPositionAsync({
+          accuracy:
+            Location.Accuracy.High,
+        });
 
     await actualizarUbicacion(
       token,
-      latitud,
-      longitud
+      ubicacion.coords.latitude,
+      ubicacion.coords.longitude
     );
 
     return true;
@@ -163,8 +215,14 @@ export default function HomeScreen() {
 
       setMensaje("");
 
-      // Para ponerse disponible
-      // necesitamos saber dónde está.
+      if (pedidoActivo) {
+        setMensaje(
+          "No puedes cambiar tu disponibilidad mientras tienes una entrega en curso."
+        );
+
+        return;
+      }
+
       if (nuevoEstado) {
         const ubicacionCorrecta =
           await obtenerYEnviarUbicacion();
@@ -240,10 +298,29 @@ export default function HomeScreen() {
     }
   }
 
+  function verPedido(
+    pedidoId: number
+  ) {
+    navigation.navigate(
+      "DetallePedido",
+      {
+        pedidoId,
+      }
+    );
+  }
+
+  function continuarPedidoActivo() {
+    navigation.navigate(
+      "PedidoActivo"
+    );
+  }
+
   if (cargando) {
     return (
       <SafeAreaView
-        style={styles.loadingContainer}
+        style={
+          styles.loadingContainer
+        }
       >
         <ActivityIndicator
           size="large"
@@ -295,7 +372,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* DISPONIBILIDAD */}
+        {/* ESTADO */}
         <View
           style={styles.statusCard}
         >
@@ -314,11 +391,13 @@ export default function HomeScreen() {
               ]}
             />
 
-            <View>
+            <View style={{ flex: 1 }}>
               <Text
                 style={styles.statusTitle}
               >
-                {perfil?.disponible
+                {pedidoActivo
+                  ? "Ocupado"
+                  : perfil?.disponible
                   ? "Disponible"
                   : "No disponible"}
               </Text>
@@ -328,7 +407,9 @@ export default function HomeScreen() {
                   styles.statusSubtitle
                 }
               >
-                {perfil?.disponible
+                {pedidoActivo
+                  ? "Tienes una entrega en curso."
+                  : perfil?.disponible
                   ? "Puedes recibir nuevos pedidos."
                   : "Actívate para comenzar a recibir pedidos."}
               </Text>
@@ -345,23 +426,17 @@ export default function HomeScreen() {
                 perfil?.disponible ??
                 false
               }
+              disabled={
+                !!pedidoActivo
+              }
               onValueChange={
                 cambiarDisponibilidad
-              }
-              trackColor={{
-                false: "#cccccc",
-                true: "#8ddca9",
-              }}
-              thumbColor={
-                perfil?.disponible
-                  ? "#20a85a"
-                  : "#f4f4f4"
               }
             />
           )}
         </View>
 
-        {/* INFORMACIÓN VEHÍCULO */}
+        {/* VEHÍCULO */}
         <View
           style={styles.vehicleCard}
         >
@@ -414,6 +489,69 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* PEDIDO ACTIVO */}
+        {pedidoActivo ? (
+          <View
+            style={
+              styles.activeOrderCard
+            }
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={
+                  styles.activeOrderLabel
+                }
+              >
+                PEDIDO EN CURSO
+              </Text>
+
+              <Text
+                style={
+                  styles.activeOrderTitle
+                }
+              >
+                Pedido #{pedidoActivo.id}
+              </Text>
+
+              <Text
+                style={
+                  styles.activeOrderCommerce
+                }
+              >
+                {
+                  pedidoActivo.comercio
+                    .nombre
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.activeOrderState
+                }
+              >
+                {pedidoActivo.estado}
+              </Text>
+            </View>
+
+            <Pressable
+              style={
+                styles.activeOrderButton
+              }
+              onPress={
+                continuarPedidoActivo
+              }
+            >
+              <Text
+                style={
+                  styles.activeOrderButtonText
+                }
+              >
+                VER
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* MENSAJE */}
         {mensaje ? (
           <View
@@ -427,8 +565,9 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {/* PEDIDOS */}
-        {perfil?.disponible ? (
+        {/* PEDIDOS DISPONIBLES */}
+        {perfil?.disponible &&
+        !pedidoActivo ? (
           <>
             <View
               style={
@@ -589,9 +728,7 @@ export default function HomeScreen() {
                     >
                       Cliente:{" "}
                       <Text
-                        style={
-                          styles.bold
-                        }
+                        style={styles.bold}
                       >
                         {
                           pedido.cliente
@@ -639,11 +776,11 @@ export default function HomeScreen() {
                       style={
                         styles.detailsButton
                       }
-                      onPress={() => {
-                        setMensaje(
-                          `El siguiente paso será aceptar el pedido #${pedido.id}.`
-                        );
-                      }}
+                      onPress={() =>
+                        verPedido(
+                          pedido.id
+                        )
+                      }
                     >
                       <Text
                         style={
@@ -658,24 +795,70 @@ export default function HomeScreen() {
               )
             )}
           </>
+        ) : pedidoActivo ? (
+          <View
+            style={styles.busyCard}
+          >
+            <Text
+              style={styles.busyIcon}
+            >
+              🛵
+            </Text>
+
+            <Text
+              style={styles.busyTitle}
+            >
+              Tienes una entrega en curso
+            </Text>
+
+            <Text
+              style={styles.busyText}
+            >
+              Completa tu pedido actual
+              antes de recibir uno nuevo.
+            </Text>
+
+            <Pressable
+              style={
+                styles.busyButton
+              }
+              onPress={
+                continuarPedidoActivo
+              }
+            >
+              <Text
+                style={
+                  styles.busyButtonText
+                }
+              >
+                CONTINUAR ENTREGA
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           <View
             style={styles.offlineCard}
           >
             <Text
-              style={styles.offlineIcon}
+              style={
+                styles.offlineIcon
+              }
             >
               📍
             </Text>
 
             <Text
-              style={styles.offlineTitle}
+              style={
+                styles.offlineTitle
+              }
             >
               Activa tu disponibilidad
             </Text>
 
             <Text
-              style={styles.offlineText}
+              style={
+                styles.offlineText
+              }
             >
               Cuando estés disponible,
               usaremos tu ubicación para
@@ -683,6 +866,21 @@ export default function HomeScreen() {
             </Text>
           </View>
         )}
+
+        <Pressable
+              style={styles.historyButton}
+              onPress={() =>
+                navigation.navigate(
+                  "Historial"
+                )
+              }
+            >
+              <Text
+                style={styles.historyButtonText}
+              >
+                VER HISTORIAL DE ENTREGAS
+              </Text>
+            </Pressable>
 
         {/* CERRAR SESIÓN */}
         <Pressable
@@ -756,7 +954,7 @@ const styles =
     },
 
     statusCard: {
-      backgroundColor: "#ffffff",
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 18,
       flexDirection: "row",
@@ -799,11 +997,10 @@ const styles =
       fontSize: 12,
       color: "#777",
       marginTop: 3,
-      maxWidth: 220,
     },
 
     vehicleCard: {
-      backgroundColor: "#ffffff",
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 18,
       marginBottom: 16,
@@ -836,6 +1033,54 @@ const styles =
     vehicleValue: {
       fontWeight: "700",
       color: "#222",
+    },
+
+    activeOrderCard: {
+      backgroundColor: "#e8f7ee",
+      borderRadius: 16,
+      padding: 17,
+      marginBottom: 16,
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+    },
+
+    activeOrderLabel: {
+      color: "#19894a",
+      fontSize: 11,
+      fontWeight: "900",
+    },
+
+    activeOrderTitle: {
+      fontSize: 19,
+      fontWeight: "900",
+      color: "#222",
+      marginTop: 3,
+    },
+
+    activeOrderCommerce: {
+      color: "#444",
+      marginTop: 4,
+      fontWeight: "600",
+    },
+
+    activeOrderState: {
+      color: "#19894a",
+      marginTop: 4,
+      fontWeight: "700",
+    },
+
+    activeOrderButton: {
+      backgroundColor: "#20a85a",
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+
+    activeOrderButtonText: {
+      color: "#fff",
+      fontWeight: "900",
     },
 
     messageBox: {
@@ -874,7 +1119,7 @@ const styles =
     },
 
     ordersLoading: {
-      backgroundColor: "#ffffff",
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 30,
       alignItems: "center",
@@ -882,7 +1127,7 @@ const styles =
     },
 
     emptyCard: {
-      backgroundColor: "#ffffff",
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 25,
       alignItems: "center",
@@ -907,8 +1152,22 @@ const styles =
       lineHeight: 19,
     },
 
+    historyButton: {
+      borderWidth: 1,
+      borderColor: "#20a85a",
+      borderRadius: 10,
+      paddingVertical: 13,
+      alignItems: "center",
+      marginTop: 20,
+    },
+
+    historyButtonText: {
+      color: "#20a85a",
+      fontWeight: "900",
+    },
+
     orderCard: {
-      backgroundColor: "#ffffff",
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 18,
       marginBottom: 15,
@@ -993,12 +1252,52 @@ const styles =
     },
 
     detailsButtonText: {
-      color: "#ffffff",
+      color: "#fff",
       fontWeight: "800",
     },
 
-    offlineCard: {
+    busyCard: {
       backgroundColor: "#ffffff",
+      borderRadius: 16,
+      padding: 25,
+      alignItems: "center",
+      elevation: 2,
+    },
+
+    busyIcon: {
+      fontSize: 38,
+    },
+
+    busyTitle: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: "#222",
+      marginTop: 10,
+    },
+
+    busyText: {
+      color: "#777",
+      textAlign: "center",
+      marginTop: 6,
+      lineHeight: 19,
+    },
+
+    busyButton: {
+      backgroundColor: "#20a85a",
+      width: "100%",
+      borderRadius: 10,
+      paddingVertical: 13,
+      alignItems: "center",
+      marginTop: 18,
+    },
+
+    busyButtonText: {
+      color: "#fff",
+      fontWeight: "900",
+    },
+
+    offlineCard: {
+      backgroundColor: "#fff",
       borderRadius: 16,
       padding: 28,
       alignItems: "center",

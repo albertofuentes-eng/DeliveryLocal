@@ -598,7 +598,9 @@ public class RepartidoresController : ControllerBase
                         p.Comercio.Id,
                         p.Comercio.Nombre,
                         p.Comercio.Direccion,
-                        p.Comercio.Telefono
+                        p.Comercio.Telefono,
+                        p.Comercio.Latitud,
+                        p.Comercio.Longitud
                     },
 
                     Cliente = new
@@ -752,26 +754,42 @@ public class RepartidoresController : ControllerBase
         });
     }
 
-    // =========================
-    // GET:
-    // api/Repartidores/mi-pedido
-    // =========================
     [HttpGet("mi-pedido")]
     public async Task<IActionResult> MiPedido()
     {
-        var usuarioId =
-            ObtenerUsuarioId();
+        var usuarioId = ObtenerUsuarioId();
 
         if (usuarioId == null)
         {
             return Unauthorized();
         }
 
+        var usuario =
+            await _context.Usuarios
+                .FirstOrDefaultAsync(u =>
+                    u.Id == usuarioId.Value &&
+                    u.Activo
+                );
+
+        if (
+            usuario == null ||
+            usuario.Rol != "Repartidor"
+        )
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un repartidor puede consultar su pedido activo."
+                }
+            );
+        }
+
         var repartidor =
             await _context.Repartidores
                 .FirstOrDefaultAsync(r =>
-                    r.UsuarioId ==
-                        usuarioId.Value &&
+                    r.UsuarioId == usuarioId.Value &&
                     r.Activo
                 );
 
@@ -787,49 +805,69 @@ public class RepartidoresController : ControllerBase
         var pedido =
             await _context.Pedidos
                 .Where(p =>
-                    p.RepartidorId ==
-                        repartidor.Id &&
+                    p.RepartidorId == repartidor.Id &&
                     (
-                        p.Estado ==
-                            "Asignado a repartidor" ||
-                        p.Estado ==
-                            "Recogido" ||
-                        p.Estado ==
-                            "En camino"
+                        p.Estado == "Asignado a repartidor" ||
+                        p.Estado == "Recogido" ||
+                        p.Estado == "En camino"
                     )
                 )
-                .OrderByDescending(
-                    p => p.Fecha
+                .OrderByDescending(p =>
+                    p.Fecha
                 )
                 .Select(p => new
                 {
                     p.Id,
                     p.Fecha,
                     p.Estado,
-                    p.Total,
+
+                    p.TipoEntrega,
+
+                    p.Subtotal,
                     p.Envio,
+                    p.Total,
 
                     p.DireccionEntrega,
                     p.LatitudEntrega,
                     p.LongitudEntrega,
+
                     p.TelefonoEntrega,
                     p.ReferenciaEntrega,
                     p.IndicacionesEntrega,
 
                     Comercio = new
-                    {
-                        p.Comercio.Id,
-                        p.Comercio.Nombre,
-                        p.Comercio.Direccion,
-                        p.Comercio.Telefono
-                    },
+                {
+                    p.Comercio.Id,
+                    p.Comercio.Nombre,
+                    p.Comercio.Direccion,
+                    p.Comercio.Telefono,
+                    p.Comercio.Latitud,
+                    p.Comercio.Longitud
+                },
 
                     Cliente = new
                     {
                         p.Usuario.Id,
                         p.Usuario.Nombre,
-                        p.Usuario.Telefono
-                    }
+
+                        Telefono =
+                            p.TelefonoEntrega
+                    },
+
+                    Detalles =
+                        p.Detalles.Select(d =>
+                            new
+                            {
+                                d.ProductoId,
+
+                                Producto =
+                                    d.Producto.Nombre,
+
+                                d.Cantidad,
+                                d.PrecioUnitario,
+                                d.Subtotal
+                            }
+                        )
                 })
                 .FirstOrDefaultAsync();
 
@@ -845,28 +883,45 @@ public class RepartidoresController : ControllerBase
         return Ok(pedido);
     }
 
-    // =========================
-    // GET:
-    // api/Repartidores/pedidos/5
-    // =========================
+
     [HttpGet("pedidos/{id:int}")]
     public async Task<IActionResult> DetallePedido(
         int id
     )
     {
-        var usuarioId =
-            ObtenerUsuarioId();
+        var usuarioId = ObtenerUsuarioId();
 
         if (usuarioId == null)
         {
             return Unauthorized();
         }
 
+        var usuario =
+            await _context.Usuarios
+                .FirstOrDefaultAsync(u =>
+                    u.Id == usuarioId.Value &&
+                    u.Activo
+                );
+
+        if (
+            usuario == null ||
+            usuario.Rol != "Repartidor"
+        )
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un repartidor puede consultar este pedido."
+                }
+            );
+        }
+
         var repartidor =
             await _context.Repartidores
                 .FirstOrDefaultAsync(r =>
-                    r.UsuarioId ==
-                        usuarioId.Value &&
+                    r.UsuarioId == usuarioId.Value &&
                     r.Activo
                 );
 
@@ -883,52 +938,75 @@ public class RepartidoresController : ControllerBase
             await _context.Pedidos
                 .Where(p =>
                     p.Id == id &&
-                    p.RepartidorId ==
-                        repartidor.Id
+                    p.TipoEntrega == "Domicilio" &&
+                    (
+                        // Pedido todavía disponible
+                        (
+                            p.Estado == "Listo para recoger" &&
+                            p.RepartidorId == null &&
+                            repartidor.Disponible
+                        )
+
+                        ||
+
+                        // O pedido que ya pertenece
+                        // a este repartidor
+                        p.RepartidorId == repartidor.Id
+                    )
                 )
                 .Select(p => new
                 {
                     p.Id,
                     p.Fecha,
                     p.Estado,
+
                     p.TipoEntrega,
-                    p.Total,
+
+                    p.Subtotal,
                     p.Envio,
+                    p.Total,
 
                     p.DireccionEntrega,
                     p.LatitudEntrega,
                     p.LongitudEntrega,
+
                     p.TelefonoEntrega,
                     p.ReferenciaEntrega,
                     p.IndicacionesEntrega,
 
                     Comercio = new
-                    {
-                        p.Comercio.Id,
-                        p.Comercio.Nombre,
-                        p.Comercio.Direccion,
-                        p.Comercio.Telefono
-                    },
+                {
+                    p.Comercio.Id,
+                    p.Comercio.Nombre,
+                    p.Comercio.Direccion,
+                    p.Comercio.Telefono,
+                    p.Comercio.Latitud,
+                    p.Comercio.Longitud
+                },
 
                     Cliente = new
                     {
                         p.Usuario.Id,
                         p.Usuario.Nombre,
-                        p.Usuario.Telefono
+
+                        Telefono =
+                            p.TelefonoEntrega
                     },
 
                     Detalles =
-                        p.Detalles.Select(d => new
-                        {
-                            d.ProductoId,
+                        p.Detalles.Select(d =>
+                            new
+                            {
+                                d.ProductoId,
 
-                            Producto =
-                                d.Producto.Nombre,
+                                Producto =
+                                    d.Producto.Nombre,
 
-                            d.Cantidad,
-                            d.PrecioUnitario,
-                            d.Subtotal
-                        })
+                                d.Cantidad,
+                                d.PrecioUnitario,
+                                d.Subtotal
+                            }
+                        )
                 })
                 .FirstOrDefaultAsync();
 
@@ -937,7 +1015,7 @@ public class RepartidoresController : ControllerBase
             return NotFound(new
             {
                 mensaje =
-                    "Pedido no encontrado o no está asignado a este repartidor."
+                    "El pedido no está disponible o no pertenece a este repartidor."
             });
         }
 
@@ -1166,6 +1244,9 @@ public class RepartidoresController : ControllerBase
         pedido.Estado =
             "Entregado";
 
+        pedido.FechaEntrega =
+            DateTime.UtcNow;
+
         // Al terminar vuelve a quedar
         // disponible para otro pedido.
         repartidor.Disponible =
@@ -1184,26 +1265,43 @@ public class RepartidoresController : ControllerBase
         });
     }
 
-    // =========================
-    // GET:
-    // api/Repartidores/historial
-    // =========================
     [HttpGet("historial")]
     public async Task<IActionResult> Historial()
     {
-        var usuarioId =
-            ObtenerUsuarioId();
+        var usuarioId = ObtenerUsuarioId();
 
         if (usuarioId == null)
         {
             return Unauthorized();
         }
 
+        var usuario =
+            await _context.Usuarios
+                .FirstOrDefaultAsync(u =>
+                    u.Id == usuarioId.Value &&
+                    u.Activo
+                );
+
+        if (
+            usuario == null ||
+            usuario.Rol != "Repartidor"
+        )
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un repartidor puede consultar su historial."
+                }
+            );
+        }
+
         var repartidor =
             await _context.Repartidores
                 .FirstOrDefaultAsync(r =>
-                    r.UsuarioId ==
-                        usuarioId.Value
+                    r.UsuarioId == usuarioId.Value &&
+                    r.Activo
                 );
 
         if (repartidor == null)
@@ -1218,32 +1316,231 @@ public class RepartidoresController : ControllerBase
         var pedidos =
             await _context.Pedidos
                 .Where(p =>
-                    p.RepartidorId ==
-                        repartidor.Id &&
-                    p.Estado ==
-                        "Entregado"
+                    p.RepartidorId == repartidor.Id &&
+                    p.Estado == "Entregado"
                 )
-                .OrderByDescending(
-                    p => p.Fecha
+                .OrderByDescending(p =>
+                    p.Fecha
                 )
                 .Select(p => new
                 {
                     p.Id,
                     p.Fecha,
+                    p.Estado,
+
                     p.Total,
                     p.Envio,
 
-                    Comercio =
-                        p.Comercio.Nombre,
+                    p.DireccionEntrega,
 
-                    Cliente =
+                    Comercio = new
+                {
+                    p.Comercio.Id,
+                    p.Comercio.Nombre,
+                    p.Comercio.Direccion,
+                    p.Comercio.Telefono,
+                    p.Comercio.Latitud,
+                    p.Comercio.Longitud
+                },
+
+                    Cliente = new
+                    {
+                        p.Usuario.Id,
                         p.Usuario.Nombre,
 
-                    p.DireccionEntrega
+                        Telefono =
+                            p.TelefonoEntrega
+                    }
                 })
                 .ToListAsync();
 
         return Ok(pedidos);
+    }
+
+    // =========================
+    // GET:
+    // api/Repartidores/metricas
+    // =========================
+    [HttpGet("metricas")]
+    public async Task<IActionResult> Metricas()
+    {
+        var usuarioId =
+            ObtenerUsuarioId();
+
+        if (usuarioId == null)
+        {
+            return Unauthorized();
+        }
+
+        var usuario =
+            await _context.Usuarios
+                .FirstOrDefaultAsync(u =>
+                    u.Id == usuarioId.Value &&
+                    u.Activo
+                );
+
+        if (
+            usuario == null ||
+            usuario.Rol != "Repartidor"
+        )
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un repartidor puede consultar sus métricas."
+                }
+            );
+        }
+
+        var repartidor =
+            await _context.Repartidores
+                .FirstOrDefaultAsync(r =>
+                    r.UsuarioId ==
+                        usuarioId.Value &&
+                    r.Activo
+                );
+
+        if (repartidor == null)
+        {
+            return NotFound(new
+            {
+                mensaje =
+                    "Perfil de repartidor no encontrado."
+            });
+        }
+
+        var ahora =
+            DateTime.UtcNow;
+
+        var inicioHoy =
+            ahora.Date;
+
+        var inicioSemana =
+            inicioHoy.AddDays(
+                -(
+                    (
+                        7 +
+                        (int)inicioHoy.DayOfWeek -
+                        (int)DayOfWeek.Monday
+                    ) % 7
+                )
+            );
+
+        var inicioMes =
+            new DateTime(
+                ahora.Year,
+                ahora.Month,
+                1,
+                0,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+        var pedidosEntregados =
+            _context.Pedidos
+                .Where(p =>
+                    p.RepartidorId ==
+                        repartidor.Id &&
+                    p.Estado ==
+                        "Entregado"
+                );
+
+        var totalEntregas =
+            await pedidosEntregados
+                .CountAsync();
+
+        var gananciasTotales =
+            await pedidosEntregados
+                .SumAsync(p =>
+                    (decimal?)p.Envio
+                ) ?? 0;
+
+        var entregasHoy =
+            await pedidosEntregados
+                .CountAsync(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioHoy
+                );
+
+        var gananciasHoy =
+            await pedidosEntregados
+                .Where(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioHoy
+                )
+                .SumAsync(p =>
+                    (decimal?)p.Envio
+                ) ?? 0;
+
+        var entregasSemana =
+            await pedidosEntregados
+                .CountAsync(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioSemana
+                );
+
+        var gananciasSemana =
+            await pedidosEntregados
+                .Where(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioSemana
+                )
+                .SumAsync(p =>
+                    (decimal?)p.Envio
+                ) ?? 0;
+
+        var entregasMes =
+            await pedidosEntregados
+                .CountAsync(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioMes
+                );
+
+        var gananciasMes =
+            await pedidosEntregados
+                .Where(p =>
+                    p.FechaEntrega != null &&
+                    p.FechaEntrega >= inicioMes
+                )
+                .SumAsync(p =>
+                    (decimal?)p.Envio
+                ) ?? 0;
+
+        return Ok(new
+        {
+            totalEntregas,
+            gananciasTotales,
+
+            hoy = new
+            {
+                entregas =
+                    entregasHoy,
+
+                ganancias =
+                    gananciasHoy
+            },
+
+            semana = new
+            {
+                entregas =
+                    entregasSemana,
+
+                ganancias =
+                    gananciasSemana
+            },
+
+            mes = new
+            {
+                entregas =
+                    entregasMes,
+
+                ganancias =
+                    gananciasMes
+            }
+        });
     }
 }
 
