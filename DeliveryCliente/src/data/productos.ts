@@ -1,6 +1,14 @@
 import { Producto } from "../models/Producto";
 
-export const productos: Producto[] = [
+type ProductoLocal = Pick<
+  Producto,
+  "id" | "nombre" | "descripcion" | "precio"
+> & {
+  imagen: string;
+  restaurante: string;
+};
+
+export const productos: ProductoLocal[] = [
 
   // PIZZAS
 

@@ -160,6 +160,69 @@ public class AdminRepartidoresController : ControllerBase
     }
 
     // =========================
+    // GET:
+    // api/AdminRepartidores/repartidores
+    // Lista de repartidores
+    // =========================
+    [HttpGet("repartidores")]
+    public async Task<IActionResult> ObtenerRepartidores()
+    {
+        var administrador =
+            await ObtenerAdministrador();
+
+        if (administrador == null)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un administrador puede ver los repartidores."
+                }
+            );
+        }
+
+        var repartidores =
+            await _context.Repartidores
+                .OrderBy(r =>
+                    r.Usuario.Nombre
+                )
+                .Select(r => new
+                {
+                    r.Id,
+                    r.UsuarioId,
+
+                    Usuario = new
+                    {
+                        r.Usuario.Nombre,
+                        r.Usuario.Correo,
+                        r.Usuario.Telefono,
+                        r.Usuario.Activo
+                    },
+
+                    r.TipoVehiculo,
+                    r.Placa,
+
+                    r.Disponible,
+                    r.Activo,
+
+                    r.LatitudActual,
+                    r.LongitudActual,
+                    r.UltimaActualizacionUbicacion,
+
+                    r.FechaCreacion,
+
+                    TotalEntregas =
+                        r.Pedidos.Count(p =>
+                            p.Estado == "Entregado"
+                        )
+                })
+                .ToListAsync();
+
+        return Ok(repartidores);
+    }
+
+    // =========================
     // PUT:
     // api/AdminRepartidores/solicitudes/5/aprobar
     // =========================

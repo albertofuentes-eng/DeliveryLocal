@@ -1,27 +1,58 @@
-import ConfirmOrderScreen from "../screens/delivery/ConfirmOrderScreen";
-import DeliveryDetailsScreen from "../screens/delivery/DeliveryDetailsScreen";
-import DeliveryTimeScreen from "../screens/delivery/DeliveryTimeScreen";
 import React from "react";
+
 import {
-  View,
   ActivityIndicator,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  NavigationContainer,
+} from "@react-navigation/native";
 
-import LoginScreen from "../screens/auth/LoginScreen";
-import RegisterScreen from "../screens/auth/RegisterScreen";
-import BottomTabs from "./BottomTabs";
-import RestaurantScreen from "../screens/commerce/RestaurantScreen";
-import MisPedidosScreen from "../screens/orders/MisPedidosScreen";
-import DetallePedidoScreen from "../screens/orders/DetallePedidoScreen";
-import DeliveryLocationScreen from "../screens/delivery/DeliveryLocationScreen";
+import {
+  createNativeStackNavigator,
+} from "@react-navigation/native-stack";
 
-import { useAuth } from "../context/AuthContext";
+import LoginScreen
+  from "../screens/auth/LoginScreen";
 
-const Stack = createNativeStackNavigator();
+import RegisterScreen
+  from "../screens/auth/RegisterScreen";
+
+import BottomTabs
+  from "./BottomTabs";
+
+import RestaurantScreen
+  from "../screens/commerce/RestaurantScreen";
+
+import MisPedidosScreen
+  from "../screens/orders/MisPedidosScreen";
+
+import DetallePedidoScreen
+  from "../screens/orders/DetallePedidoScreen";
+
+import DeliveryLocationScreen
+  from "../screens/delivery/DeliveryLocationScreen";
+
+import DeliveryTimeScreen
+  from "../screens/delivery/DeliveryTimeScreen";
+
+import DeliveryDetailsScreen
+  from "../screens/delivery/DeliveryDetailsScreen";
+
+import ConfirmOrderScreen
+  from "../screens/delivery/ConfirmOrderScreen";
+
+import SolicitudRepartidorScreen
+  from "../screens/profile/SolicitudRepartidorScreen";
+
+import {
+  useAuth,
+} from "../context/AuthContext";
+
+const Stack =
+  createNativeStackNavigator();
 
 export default function AppNavigator() {
   const {
@@ -31,7 +62,11 @@ export default function AppNavigator() {
 
   if (cargandoSesion) {
     return (
-      <View style={styles.loadingContainer}>
+      <View
+        style={
+          styles.loadingContainer
+        }
+      >
         <ActivityIndicator
           size="large"
           color="#E53935"
@@ -89,7 +124,17 @@ export default function AppNavigator() {
               component={ConfirmOrderScreen}
             />
 
-
+            <Stack.Screen
+              name="SolicitudRepartidor"
+              component={
+                SolicitudRepartidorScreen
+              }
+              options={{
+                headerShown: true,
+                title:
+                  "Quiero ser repartidor",
+              }}
+            />
           </>
         ) : (
           <>
@@ -109,11 +154,15 @@ export default function AppNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-});
+const styles =
+  StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+      backgroundColor:
+        "#fff",
+    },
+  });

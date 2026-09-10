@@ -111,6 +111,121 @@ export async function registrarUsuario(
 }
 
 // ========================================
+// SOLICITUD PARA SER REPARTIDOR
+// ========================================
+
+export type SolicitudRepartidorCliente = {
+  id?: number;
+  tipoVehiculo?: string;
+  placa?: string | null;
+  estado?: string;
+  fechaSolicitud?: string;
+  fechaRevision?: string | null;
+  observacion?: string | null;
+};
+
+export async function crearSolicitudRepartidor(
+  token: string,
+  datos: {
+    tipoVehiculo: string;
+    placa?: string | null;
+  }
+) {
+  const response = await fetch(
+    `${API_URL}/api/Repartidores/solicitud`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+
+        Authorization:
+          `Bearer ${token}`,
+      },
+
+      body: JSON.stringify(datos),
+    }
+  );
+
+  const texto =
+    await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Cierra sesión e inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo enviar la solicitud. Código: ${response.status}`
+    );
+  }
+
+  return data;
+}
+
+export async function obtenerMiSolicitudRepartidor(
+  token: string
+): Promise<SolicitudRepartidorCliente | null> {
+  const response = await fetch(
+    `${API_URL}/api/Repartidores/mi-solicitud`,
+    {
+      method: "GET",
+
+      headers: {
+        Authorization:
+          `Bearer ${token}`,
+      },
+    }
+  );
+
+  const texto =
+    await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Cierra sesión e inicia sesión nuevamente."
+    );
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo consultar tu solicitud. Código: ${response.status}`
+    );
+  }
+
+  return data;
+}
+
+// ========================================
 // CREAR PEDIDO
 // ========================================
 
@@ -119,19 +234,41 @@ export async function crearPedido(
   datos: {
     comercioId: number;
 
-    tipoEntrega: "Domicilio" | "Recoger";
+    tipoEntrega:
+      | "Domicilio"
+      | "Recoger";
 
-    direccionEntrega?: string | null;
-    latitudEntrega?: number | null;
-    longitudEntrega?: number | null;
+    direccionEntrega?:
+      | string
+      | null;
 
-    telefonoEntrega?: string | null;
-    referenciaEntrega?: string | null;
-    indicacionesEntrega?: string | null;
+    latitudEntrega?:
+      | number
+      | null;
 
-    tipoTiempo: "Ahora" | "Despues";
+    longitudEntrega?:
+      | number
+      | null;
 
-    fechaProgramada?: string | null;
+    telefonoEntrega?:
+      | string
+      | null;
+
+    referenciaEntrega?:
+      | string
+      | null;
+
+    indicacionesEntrega?:
+      | string
+      | null;
+
+    tipoTiempo:
+      | "Ahora"
+      | "Despues";
+
+    fechaProgramada?:
+      | string
+      | null;
 
     productos: {
       productoId: number;
@@ -145,15 +282,20 @@ export async function crearPedido(
       method: "POST",
 
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        "Content-Type":
+          "application/json",
+
+        Authorization:
+          `Bearer ${token}`,
       },
 
-      body: JSON.stringify(datos),
+      body:
+        JSON.stringify(datos),
     }
   );
 
-  const texto = await response.text();
+  const texto =
+    await response.text();
 
   let data: any = null;
 
@@ -194,12 +336,14 @@ export async function obtenerMisPedidos(
       method: "GET",
 
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization:
+          `Bearer ${token}`,
       },
     }
   );
 
-  const texto = await response.text();
+  const texto =
+    await response.text();
 
   let data: any = null;
 
@@ -241,12 +385,14 @@ export async function obtenerPedidoPorId(
       method: "GET",
 
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization:
+          `Bearer ${token}`,
       },
     }
   );
 
-  const texto = await response.text();
+  const texto =
+    await response.text();
 
   let data: any = null;
 

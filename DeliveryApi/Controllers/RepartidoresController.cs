@@ -4,6 +4,7 @@ using DeliveryApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using DeliveryApi.DTOs;
 
 namespace DeliveryApi.Controllers;
 
@@ -43,13 +44,10 @@ public class RepartidoresController : ControllerBase
         return usuarioId;
     }
 
-    // =========================
-    // POST:
-    // api/Repartidores/solicitud
-    // =========================
+    
     [HttpPost("solicitud")]
     public async Task<IActionResult> CrearSolicitud(
-        SolicitudRepartidor solicitud
+        CrearSolicitudRepartidorDto solicitud
     )
     {
         var usuarioId =
@@ -119,9 +117,11 @@ public class RepartidoresController : ControllerBase
             });
         }
 
-        if (string.IsNullOrWhiteSpace(
-            solicitud.TipoVehiculo
-        ))
+        if (
+            string.IsNullOrWhiteSpace(
+                solicitud.TipoVehiculo
+            )
+        )
         {
             return BadRequest(new
             {

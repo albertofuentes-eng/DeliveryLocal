@@ -63,12 +63,7 @@ export type RootStackParamList = {
     longitudEntrega: number;
   };
 
-  // Lo conservamos para que HomeScreen
-  // siga compilando mientras migramos
-  // totalmente a tabs.
-  Historial: undefined;
-
-  Home: undefined;
+  
 };
 
 const Stack =

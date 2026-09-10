@@ -24,11 +24,22 @@ import {
 } from "@react-navigation/native";
 
 import type {
+  CompositeNavigationProp,
+} from "@react-navigation/native";
+
+import type {
+  BottomTabNavigationProp,
+} from "@react-navigation/bottom-tabs";
+
+import type {
   NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
 
-import * as Location
-  from "expo-location";
+import * as Location from "expo-location";
+
+import type {
+  BottomTabParamList,
+} from "../../navigation/BottomTabs";
 
 import type {
   RootStackParamList,
@@ -50,9 +61,14 @@ import {
 } from "../../services/api";
 
 type HomeNavigation =
-  NativeStackNavigationProp<
-    RootStackParamList,
-    "Home"
+  CompositeNavigationProp<
+    BottomTabNavigationProp<
+      BottomTabParamList,
+      "Inicio"
+    >,
+    NativeStackNavigationProp<
+      RootStackParamList
+    >
   >;
 
 export default function HomeScreen() {
@@ -867,21 +883,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <Pressable
-              style={styles.historyButton}
-              onPress={() =>
-                navigation.navigate(
-                  "Historial"
-                )
-              }
-            >
-              <Text
-                style={styles.historyButtonText}
-              >
-                VER HISTORIAL DE ENTREGAS
-              </Text>
-            </Pressable>
-
         {/* CERRAR SESIÓN */}
         <Pressable
           style={styles.logout}
@@ -1150,20 +1151,6 @@ const styles =
       color: "#777",
       marginTop: 6,
       lineHeight: 19,
-    },
-
-    historyButton: {
-      borderWidth: 1,
-      borderColor: "#20a85a",
-      borderRadius: 10,
-      paddingVertical: 13,
-      alignItems: "center",
-      marginTop: 20,
-    },
-
-    historyButtonText: {
-      color: "#20a85a",
-      fontWeight: "900",
     },
 
     orderCard: {
