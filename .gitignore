@@ -42,3 +42,20 @@ Desktop.ini
 # macOS
 # =========================
 .DS_Store
+
+# =========================
+# Deployment / Azure
+# =========================
+DeliveryApi/publish/
+DeliveryApi/publish-linux/
+DeliveryApi/*.zip
+
+# =========================
+# Production configuration
+# =========================
+DeliveryApi/appsettings.Production.json
+
+# =========================
+# Sensitive database scripts
+# =========================
+Database/DeliveryLocal_Azure.sql
