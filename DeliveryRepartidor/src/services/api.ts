@@ -1,4 +1,4 @@
-const API_URL = "http://10.0.2.2:5022";
+const API_URL = "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
 
 // ==========================================
 // AUTENTICACIÓN

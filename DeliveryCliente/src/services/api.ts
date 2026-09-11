@@ -1,4 +1,4 @@
-const API_URL = "http://10.0.2.2:5022";
+const API_URL = "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
 
 // ========================================
 // COMERCIOS
@@ -62,12 +62,22 @@ export async function iniciarSesion(
     }
   );
 
-  const data = await response.json();
+  const texto = await response.text();
+
+  let data: any = {};
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = {};
+    }
+  }
 
   if (!response.ok) {
     throw new Error(
       data.mensaje ||
-        "No se pudo iniciar sesión."
+        `Error del servidor (${response.status})`
     );
   }
 
