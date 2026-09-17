@@ -67,6 +67,11 @@ export default function SolicitudRepartidorScreen() {
     setMensaje,
   ] = useState("");
 
+  const [
+    mostrarFormularioReintento,
+    setMostrarFormularioReintento,
+  ] = useState(false);
+
   useEffect(() => {
     cargarSolicitud();
   }, [token]);
@@ -96,14 +101,37 @@ export default function SolicitudRepartidorScreen() {
     }
   }
 
+  function prepararNuevaSolicitud() {
+    if (solicitud) {
+      setTipoVehiculo(
+        solicitud.tipoVehiculo ||
+          "Moto"
+      );
+
+      setPlaca(
+        solicitud.placa || ""
+      );
+    }
+
+    setMensaje("");
+    setMostrarFormularioReintento(
+      true
+    );
+  }
+
+  function cancelarReintento() {
+    setMensaje("");
+    setMostrarFormularioReintento(
+      false
+    );
+  }
+
   async function enviarSolicitud() {
     if (!token) {
       return;
     }
 
-    if (
-      !tipoVehiculo.trim()
-    ) {
+    if (!tipoVehiculo.trim()) {
       Alert.alert(
         "Datos incompletos",
         "Ingresa el tipo de vehículo."
@@ -114,7 +142,10 @@ export default function SolicitudRepartidorScreen() {
 
     Alert.alert(
       "Enviar solicitud",
-      "¿Deseas enviar tu solicitud para trabajar como repartidor?",
+      solicitud?.estado ===
+        "Rechazada"
+        ? "¿Deseas enviar una nueva solicitud para trabajar como repartidor?"
+        : "¿Deseas enviar tu solicitud para trabajar como repartidor?",
       [
         {
           text: "Cancelar",
@@ -155,7 +186,14 @@ export default function SolicitudRepartidorScreen() {
 
       Alert.alert(
         "Solicitud enviada",
-        "Tu solicitud fue enviada correctamente y será revisada por DeliveryLocal."
+        solicitud?.estado ===
+          "Rechazada"
+          ? "Tu nueva solicitud fue enviada correctamente y será revisada nuevamente por DeliveryLocal."
+          : "Tu solicitud fue enviada correctamente y será revisada por DeliveryLocal."
+      );
+
+      setMostrarFormularioReintento(
+        false
       );
 
       await cargarSolicitud();
@@ -185,6 +223,191 @@ export default function SolicitudRepartidorScreen() {
     }
 
     return "#C58A00";
+  }
+
+  function renderFormulario() {
+    return (
+      <>
+        <View
+          style={styles.infoCard}
+        >
+          <Text
+            style={
+              styles.infoTitle
+            }
+          >
+            {solicitud?.estado ===
+            "Rechazada"
+              ? "🔄 Nueva oportunidad"
+              : "🛵 Trabaja con DeliveryLocal"}
+          </Text>
+
+          <Text
+            style={
+              styles.description
+            }
+          >
+            {solicitud?.estado ===
+            "Rechazada"
+              ? "Puedes corregir tus datos y enviar una nueva solicitud. El administrador volverá a revisarla."
+              : "Envía tus datos y un administrador revisará tu solicitud antes de habilitarte como repartidor."}
+          </Text>
+        </View>
+
+        <Text
+          style={styles.label}
+        >
+          Tipo de vehículo
+        </Text>
+
+        <View
+          style={
+            styles.vehicleOptions
+          }
+        >
+          {[
+            "Moto",
+            "Carro",
+            "Bicicleta",
+          ].map(
+            (tipo) => (
+              <TouchableOpacity
+                key={tipo}
+                style={[
+                  styles.vehicleButton,
+
+                  tipoVehiculo ===
+                  tipo
+                    ? styles.vehicleButtonActive
+                    : null,
+                ]}
+                onPress={() =>
+                  setTipoVehiculo(
+                    tipo
+                  )
+                }
+              >
+                <Text
+                  style={[
+                    styles.vehicleButtonText,
+
+                    tipoVehiculo ===
+                    tipo
+                      ? styles.vehicleButtonTextActive
+                      : null,
+                  ]}
+                >
+                  {tipo}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+        </View>
+
+        <Text
+          style={styles.label}
+        >
+          Placa
+        </Text>
+
+        <TextInput
+          value={placa}
+          onChangeText={
+            setPlaca
+          }
+          placeholder="Ej. ABC-123"
+          autoCapitalize="characters"
+          style={styles.input}
+        />
+
+        <Text
+          style={
+            styles.optionalText
+          }
+        >
+          Si tu vehículo no utiliza
+          placa, puedes dejar este
+          campo vacío.
+        </Text>
+
+        {mensaje ? (
+          <View
+            style={
+              styles.errorBox
+            }
+          >
+            <Text
+              style={
+                styles.errorText
+              }
+            >
+              {mensaje}
+            </Text>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+
+            enviando
+              ? styles.disabledButton
+              : null,
+          ]}
+          disabled={enviando}
+          onPress={
+            enviarSolicitud
+          }
+        >
+          {enviando ? (
+            <ActivityIndicator
+              color="#fff"
+            />
+          ) : (
+            <>
+              <MaterialIcons
+                name="send"
+                size={20}
+                color="#fff"
+              />
+
+              <Text
+                style={
+                  styles.submitText
+                }
+              >
+                {solicitud?.estado ===
+                "Rechazada"
+                  ? "ENVIAR NUEVA SOLICITUD"
+                  : "ENVIAR SOLICITUD"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {solicitud?.estado ===
+          "Rechazada" &&
+        mostrarFormularioReintento ? (
+          <TouchableOpacity
+            style={
+              styles.cancelButton
+            }
+            disabled={enviando}
+            onPress={
+              cancelarReintento
+            }
+          >
+            <Text
+              style={
+                styles.cancelButtonText
+              }
+            >
+              CANCELAR
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </>
+    );
   }
 
   if (cargando) {
@@ -275,7 +498,8 @@ export default function SolicitudRepartidorScreen() {
             DeliveryRepartidor.
           </Text>
         </View>
-      ) : solicitud ? (
+      ) : solicitud &&
+        !mostrarFormularioReintento ? (
         <View
           style={
             styles.statusCard
@@ -407,181 +631,50 @@ export default function SolicitudRepartidorScreen() {
 
           {solicitud.estado ===
           "Rechazada" ? (
-            <Text
-              style={
-                styles.rejectedText
-              }
-            >
-              Esta solicitud fue
-              rechazada. Por ahora no
-              puedes ingresar como
-              repartidor.
-            </Text>
-          ) : null}
-        </View>
-      ) : (
-        <>
-          <View
-            style={styles.infoCard}
-          >
-            <Text
-              style={
-                styles.infoTitle
-              }
-            >
-              🛵 Trabaja con
-              DeliveryLocal
-            </Text>
-
-            <Text
-              style={
-                styles.description
-              }
-            >
-              Envía tus datos y un
-              administrador revisará
-              tu solicitud antes de
-              habilitarte como
-              repartidor.
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.label
-            }
-          >
-            Tipo de vehículo
-          </Text>
-
-          <View
-            style={
-              styles.vehicleOptions
-            }
-          >
-            {[
-              "Moto",
-              "Carro",
-              "Bicicleta",
-            ].map(
-              (tipo) => (
-                <TouchableOpacity
-                  key={tipo}
-                  style={[
-                    styles.vehicleButton,
-
-                    tipoVehiculo ===
-                    tipo
-                      ? styles.vehicleButtonActive
-                      : null,
-                  ]}
-                  onPress={() =>
-                    setTipoVehiculo(
-                      tipo
-                    )
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.vehicleButtonText,
-
-                      tipoVehiculo ===
-                      tipo
-                        ? styles.vehicleButtonTextActive
-                        : null,
-                    ]}
-                  >
-                    {tipo}
-                  </Text>
-                </TouchableOpacity>
-              )
-            )}
-          </View>
-
-          <Text
-            style={
-              styles.label
-            }
-          >
-            Placa
-          </Text>
-
-          <TextInput
-            value={placa}
-            onChangeText={
-              setPlaca
-            }
-            placeholder="Ej. ABC-123"
-            autoCapitalize="characters"
-            style={styles.input}
-          />
-
-          <Text
-            style={
-              styles.optionalText
-            }
-          >
-            Si tu vehículo no utiliza
-            placa, puedes dejar este
-            campo vacío.
-          </Text>
-
-          {mensaje ? (
-            <View
-              style={
-                styles.errorBox
-              }
-            >
+            <>
               <Text
                 style={
-                  styles.errorText
+                  styles.rejectedText
                 }
               >
-                {mensaje}
+                Esta solicitud fue
+                rechazada. Puedes
+                corregir tus datos y
+                volver a intentarlo.
               </Text>
-            </View>
-          ) : null}
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-
-              enviando
-                ? styles.disabledButton
-                : null,
-            ]}
-            disabled={enviando}
-            onPress={
-              enviarSolicitud
-            }
-          >
-            {enviando ? (
-              <ActivityIndicator
-                color="#fff"
-              />
-            ) : (
-              <>
+              <TouchableOpacity
+                style={
+                  styles.retryButton
+                }
+                onPress={
+                  prepararNuevaSolicitud
+                }
+              >
                 <MaterialIcons
-                  name="send"
-                  size={20}
+                  name="refresh"
+                  size={21}
                   color="#fff"
                 />
 
                 <Text
                   style={
-                    styles.submitText
+                    styles.retryButtonText
                   }
                 >
-                  ENVIAR SOLICITUD
+                  VOLVER A SOLICITAR
                 </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </>
+              </TouchableOpacity>
+            </>
+          ) : null}
+        </View>
+      ) : (
+        renderFormulario()
       )}
 
       {mensaje &&
-      solicitud ? (
+      solicitud &&
+      !mostrarFormularioReintento ? (
         <View
           style={
             styles.errorBox
@@ -764,6 +857,23 @@ const styles =
       fontSize: 16,
     },
 
+    cancelButton: {
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor:
+        "#D0D0D0",
+      backgroundColor:
+        "#fff",
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+
+    cancelButtonText: {
+      color: "#666",
+      fontWeight: "800",
+    },
+
     statusCard: {
       backgroundColor:
         "#fff",
@@ -854,6 +964,25 @@ const styles =
       borderRadius: 10,
       marginTop: 15,
       lineHeight: 19,
+    },
+
+    retryButton: {
+      marginTop: 14,
+      backgroundColor:
+        "#E53935",
+      borderRadius: 10,
+      paddingVertical: 14,
+      flexDirection: "row",
+      justifyContent:
+        "center",
+      alignItems: "center",
+      gap: 8,
+    },
+
+    retryButtonText: {
+      color: "#fff",
+      fontWeight: "800",
+      fontSize: 15,
     },
 
     approvedCard: {

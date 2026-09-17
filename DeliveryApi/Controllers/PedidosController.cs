@@ -21,6 +21,30 @@ public class PedidosController : ControllerBase
     }
 
     // =========================
+    // GET: api/Pedidos/disponibilidad-entrega
+    // =========================
+    [HttpGet("disponibilidad-entrega")]
+    public async Task<IActionResult> DisponibilidadEntrega()
+    {
+        var hayRepartidores =
+            await _context.Repartidores
+                .AnyAsync(r => r.Activo);
+
+        var hayDisponibles =
+            await _context.Repartidores
+                .AnyAsync(r =>
+                    r.Activo &&
+                    r.Disponible
+                );
+
+        return Ok(new
+        {
+            hayRepartidores,
+            hayDisponibles
+        });
+    }
+
+    // =========================
     // POST: api/Pedidos
     // =========================
     [HttpPost]
@@ -90,6 +114,38 @@ public class PedidosController : ControllerBase
 
         if (dto.TipoEntrega == "Domicilio")
         {
+
+            var existenRepartidores =
+                await _context.Repartidores
+                    .AnyAsync(r => r.Activo);
+
+            if (!existenRepartidores)
+            {
+                return BadRequest(new
+                {
+                    mensaje =
+                        "Entrega a domicilio no disponible por el momento."
+                });
+            }
+
+            if (dto.TipoTiempo == "Ahora")
+            {
+                var hayRepartidoresDisponibles =
+                    await _context.Repartidores
+                        .AnyAsync(r =>
+                            r.Activo &&
+                            r.Disponible
+                        );
+
+                if (!hayRepartidoresDisponibles)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje =
+                            "No hay repartidores disponibles en este momento."
+                    });
+                }
+            }
             if (string.IsNullOrWhiteSpace(
                 dto.DireccionEntrega
             ))

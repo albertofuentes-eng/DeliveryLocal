@@ -19,6 +19,14 @@ import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { WebView } from "react-native-webview";
 
+import {
+  useAuth,
+} from "../../context/AuthContext";
+
+import {
+  obtenerDisponibilidadEntrega,
+} from "../../services/api";
+
 type Coordenadas = {
   latitude: number;
   longitude: number;
@@ -28,6 +36,10 @@ type TipoEntrega = "Domicilio" | "Recoger";
 
 export default function DeliveryLocationScreen() {
   const navigation = useNavigation<any>();
+
+  const {
+  token,
+  } = useAuth();
 
   const webViewRef =
     useRef<WebView>(null);
@@ -53,6 +65,58 @@ export default function DeliveryLocationScreen() {
 
   const [mapaCargado, setMapaCargado] =
     useState(false);
+
+  const [
+    consultandoDisponibilidad,
+    setConsultandoDisponibilidad,
+  ] = useState(false);
+
+  async function validarEntregaDomicilio() {
+    if (!token) {
+      Alert.alert(
+        "Sesión requerida",
+        "Debes iniciar sesión nuevamente para continuar."
+      );
+
+      return false;
+    }
+
+    try {
+      setConsultandoDisponibilidad(
+        true
+      );
+
+      const disponibilidad =
+        await obtenerDisponibilidadEntrega(
+          token
+        );
+
+      if (
+        !disponibilidad.hayRepartidores
+      ) {
+        Alert.alert(
+          "Entrega no disponible",
+          "Por el momento no contamos con repartidores para realizar entregas a domicilio. Puedes elegir recoger tu pedido directamente en el comercio."
+        );
+
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      Alert.alert(
+        "No pudimos verificar la entrega",
+        error?.message ||
+          "Intenta nuevamente en unos momentos."
+      );
+
+      return false;
+    } finally {
+      setConsultandoDisponibilidad(
+        false
+      );
+    }
+  }
 
   async function solicitarUbicacion() {
     try {
@@ -159,40 +223,66 @@ export default function DeliveryLocationScreen() {
     );
   }
 
-  function confirmarUbicacion() {
-    if (!ubicacion) {
-      Alert.alert(
-        "Ubicación requerida",
-        "Selecciona tu ubicación antes de continuar."
-      );
-
-      return;
-    }
-
-    navigation.navigate(
-      "DeliveryTime",
-      {
-        tipoEntrega,
-        direccion:
-          direccionDetectada ||
-          "Ubicación seleccionada",
-        latitude: ubicacion.latitude,
-        longitude: ubicacion.longitude,
-      }
+  async function confirmarUbicacion() {
+  if (!ubicacion) {
+    Alert.alert(
+      "Ubicación requerida",
+      "Selecciona tu ubicación antes de continuar."
     );
+
+    return;
   }
 
-  function continuarDireccionManual() {
-    const direccion =
-      direccionManual.trim();
+  if (
+    tipoEntrega ===
+    "Domicilio"
+  ) {
+    const domicilioDisponible =
+      await validarEntregaDomicilio();
 
-    if (!direccion) {
-      Alert.alert(
-        "Dirección requerida",
-        "Escribe dónde deseas recibir tu pedido."
-      );
-
+    if (!domicilioDisponible) {
       return;
+    }
+  }
+
+  navigation.navigate(
+    "DeliveryTime",
+    {
+      tipoEntrega,
+      direccion:
+        direccionDetectada ||
+        "Ubicación seleccionada",
+      latitude:
+        ubicacion.latitude,
+      longitude:
+        ubicacion.longitude,
+    }
+  );
+}
+
+  async function continuarDireccionManual() {
+  const direccion =
+    direccionManual.trim();
+
+  if (!direccion) {
+    Alert.alert(
+      "Dirección requerida",
+      "Escribe dónde deseas recibir tu pedido."
+    );
+
+    return;
+  }
+
+    if (
+      tipoEntrega ===
+      "Domicilio"
+    ) {
+      const domicilioDisponible =
+        await validarEntregaDomicilio();
+
+      if (!domicilioDisponible) {
+        return;
+      }
     }
 
     navigation.navigate(
@@ -206,22 +296,37 @@ export default function DeliveryLocationScreen() {
     );
   }
 
-  function seleccionarTipoEntrega(
-    tipo: TipoEntrega
+  async function seleccionarTipoEntrega(
+  tipo: TipoEntrega
   ) {
-    setTipoEntrega(tipo);
+    if (tipo === "Domicilio") {
+      const domicilioDisponible =
+        await validarEntregaDomicilio();
 
-    if (tipo === "Recoger") {
-      navigation.navigate(
-        "DeliveryTime",
-        {
-          tipoEntrega: "Recoger",
-          direccion: "",
-          latitude: null,
-          longitude: null,
-        }
+      if (!domicilioDisponible) {
+        return;
+      }
+
+      setTipoEntrega(
+        "Domicilio"
       );
+
+      return;
     }
+
+    setTipoEntrega(
+      "Recoger"
+    );
+
+    navigation.navigate(
+      "DeliveryTime",
+      {
+        tipoEntrega: "Recoger",
+        direccion: "",
+        latitude: null,
+        longitude: null,
+      }
+    );
   }
 
   function generarMapaHtml(
@@ -364,17 +469,20 @@ map.whenReady(
         }
       >
         <TouchableOpacity
-          style={[
-            styles.deliveryTypeButton,
-            tipoEntrega === "Domicilio" &&
-              styles.deliveryTypeActive,
-          ]}
-          onPress={() =>
-            seleccionarTipoEntrega(
-              "Domicilio"
-            )
-          }
-        >
+            style={[
+              styles.deliveryTypeButton,
+              tipoEntrega === "Domicilio" &&
+                styles.deliveryTypeActive,
+            ]}
+            onPress={() =>
+              seleccionarTipoEntrega(
+                "Domicilio"
+              )
+            }
+            disabled={
+              consultandoDisponibilidad
+            }
+          >
           <Text
             style={[
               styles.deliveryTypeText,

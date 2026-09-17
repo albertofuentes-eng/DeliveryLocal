@@ -236,6 +236,59 @@ export async function obtenerMiSolicitudRepartidor(
 }
 
 // ========================================
+// DISPONIBILIDAD DE ENTREGA
+// ========================================
+
+export type DisponibilidadEntrega = {
+  hayRepartidores: boolean;
+  hayDisponibles: boolean;
+};
+
+export async function obtenerDisponibilidadEntrega(
+  token: string
+): Promise<DisponibilidadEntrega> {
+  const response = await fetch(
+    `${API_URL}/api/Pedidos/disponibilidad-entrega`,
+    {
+      method: "GET",
+
+      headers: {
+        Authorization:
+          `Bearer ${token}`,
+      },
+    }
+  );
+
+  const texto =
+    await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Cierra sesión e inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        "No se pudo consultar la disponibilidad de entrega."
+    );
+  }
+
+  return data;
+}
+
+// ========================================
 // CREAR PEDIDO
 // ========================================
 
