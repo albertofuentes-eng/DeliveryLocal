@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "884159766192",
+    "project_id": "deliverylocal-bb364",
+    "storage_bucket": "deliverylocal-bb364.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:884159766192:android:69ccf59f0979e6426f2575",
+        "android_client_info": {
+          "package_name": "com.deliverylocal.cliente"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDg3RV9JP6NQvNC-lImvNiVdU_qfmuIse4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:884159766192:android:a86d86480cb9b8af6f2575",
+        "android_client_info": {
+          "package_name": "com.deliverylocal.repartidor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDg3RV9JP6NQvNC-lImvNiVdU_qfmuIse4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

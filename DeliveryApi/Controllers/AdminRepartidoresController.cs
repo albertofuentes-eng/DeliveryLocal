@@ -5,6 +5,7 @@ using DeliveryApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using DeliveryApi.Services;
 
 namespace DeliveryApi.Controllers;
 
@@ -14,12 +15,15 @@ namespace DeliveryApi.Controllers;
 public class AdminRepartidoresController : ControllerBase
 {
     private readonly DeliveryDbContext _context;
+    private readonly ExpoPushService _expoPushService;
 
     public AdminRepartidoresController(
-        DeliveryDbContext context
+        DeliveryDbContext context,
+        ExpoPushService expoPushService
     )
     {
         _context = context;
+        _expoPushService = expoPushService;
     }
 
     // =========================
@@ -338,6 +342,52 @@ public class AdminRepartidoresController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        // =========================
+        // NOTIFICAR SOLICITUD APROBADA
+        // =========================
+        try
+        {
+            var tokensCliente =
+                await _context.DispositivosPush
+                    .Where(d =>
+                        d.UsuarioId ==
+                            solicitud.UsuarioId &&
+                        d.Aplicacion ==
+                            "Cliente" &&
+                        d.Activo
+                    )
+                    .Select(d =>
+                        d.ExpoPushToken
+                    )
+                    .ToListAsync();
+
+            foreach (
+                var tokenPush in tokensCliente
+            )
+            {
+                await _expoPushService
+                    .EnviarNotificacionAsync(
+                        tokenPush,
+                        "Solicitud aprobada",
+                        "Tu solicitud para ser repartidor fue aprobada.",
+                        new
+                        {
+                            tipo = "SolicitudRepartidor",
+                            solicitudId =
+                                solicitud.Id,
+                            estado =
+                                solicitud.Estado
+                        }
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
+
         return Ok(new
         {
             mensaje =
@@ -428,6 +478,52 @@ public class AdminRepartidoresController : ControllerBase
                 : dto.Observacion.Trim();
 
         await _context.SaveChangesAsync();
+
+        // =========================
+        // NOTIFICAR SOLICITUD RECHAZADA
+        // =========================
+        try
+        {
+            var tokensCliente =
+                await _context.DispositivosPush
+                    .Where(d =>
+                        d.UsuarioId ==
+                            solicitud.UsuarioId &&
+                        d.Aplicacion ==
+                            "Cliente" &&
+                        d.Activo
+                    )
+                    .Select(d =>
+                        d.ExpoPushToken
+                    )
+                    .ToListAsync();
+
+            foreach (
+                var tokenPush in tokensCliente
+            )
+            {
+                await _expoPushService
+                    .EnviarNotificacionAsync(
+                        tokenPush,
+                        "Solicitud rechazada",
+                        "Tu solicitud para ser repartidor fue rechazada.",
+                        new
+                        {
+                            tipo = "SolicitudRepartidor",
+                            solicitudId =
+                                solicitud.Id,
+                            estado =
+                                solicitud.Estado
+                        }
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
 
         return Ok(new
         {

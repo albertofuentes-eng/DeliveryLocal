@@ -27,6 +27,9 @@ public class DeliveryDbContext : DbContext
     public DbSet<Repartidor> Repartidores
         => Set<Repartidor>();
 
+    public DbSet<DispositivoPush> DispositivosPush
+        => Set<DispositivoPush>();
+
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
     )
@@ -327,6 +330,37 @@ public class DeliveryDbContext : DbContext
 
             entity.Property(r => r.LongitudActual)
                 .HasColumnType("decimal(10,7)");
+        });
+
+        // =========================
+        // DISPOSITIVO PUSH
+        // =========================
+        modelBuilder.Entity<DispositivoPush>(entity =>
+        {
+            entity.HasKey(d => d.Id);
+
+            entity.Property(d => d.ExpoPushToken)
+                .HasMaxLength(300)
+                .IsRequired();
+
+            entity.Property(d => d.Aplicacion)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(d => d.Plataforma)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(d => d.Activo)
+                .HasDefaultValue(true);
+
+            entity.HasIndex(d => d.ExpoPushToken)
+                .IsUnique();
+
+            entity.HasOne(d => d.Usuario)
+                .WithMany(u => u.DispositivosPush)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         

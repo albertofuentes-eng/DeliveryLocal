@@ -39,6 +39,11 @@ builder.Services.AddCors(options =>
 // Servicio para generar JWT
 builder.Services.AddScoped<JwtService>();
 
+// Cliente HTTP para enviar notificaciones push
+builder.Services.AddHttpClient();
+
+builder.Services.AddScoped<ExpoPushService>();
+
 // Configuración JWT
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException(

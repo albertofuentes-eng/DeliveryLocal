@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DeliveryApi.DTOs;
+using DeliveryApi.Services;
 
 namespace DeliveryApi.Controllers;
 
@@ -14,12 +15,15 @@ namespace DeliveryApi.Controllers;
 public class RepartidoresController : ControllerBase
 {
     private readonly DeliveryDbContext _context;
+    private readonly ExpoPushService _expoPushService;
 
     public RepartidoresController(
-        DeliveryDbContext context
+        DeliveryDbContext context,
+        ExpoPushService expoPushService
     )
     {
         _context = context;
+        _expoPushService = expoPushService;
     }
 
     // =========================
@@ -737,6 +741,62 @@ public class RepartidoresController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        // =========================
+        // NOTIFICAR AL CLIENTE
+        // REPARTIDOR ASIGNADO
+        // =========================
+        try
+        {
+            var pedidoAceptado =
+                await _context.Pedidos
+                    .FirstOrDefaultAsync(p =>
+                        p.Id == pedidoId
+                    );
+
+            if (pedidoAceptado != null)
+            {
+                var tokensCliente =
+                    await _context.DispositivosPush
+                        .Where(d =>
+                            d.UsuarioId ==
+                                pedidoAceptado.UsuarioId &&
+                            d.Aplicacion ==
+                                "Cliente" &&
+                            d.Activo
+                        )
+                        .Select(d =>
+                            d.ExpoPushToken
+                        )
+                        .ToListAsync();
+
+                foreach (
+                    var tokenPush in tokensCliente
+                )
+                {
+                    await _expoPushService
+                        .EnviarNotificacionAsync(
+                            tokenPush,
+                            "Repartidor asignado",
+                            $"Un repartidor aceptó tu pedido #{pedidoAceptado.Id}.",
+                            new
+                            {
+                                tipo = "Pedido",
+                                pedidoId =
+                                    pedidoAceptado.Id,
+                                estado =
+                                    "Asignado a repartidor"
+                            }
+                        );
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
+
         return Ok(new
         {
             pedidoId,
@@ -1090,6 +1150,51 @@ public class RepartidoresController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        // =========================
+        // NOTIFICAR AL CLIENTE
+        // PEDIDO RECOGIDO
+        // =========================
+        try
+        {
+            var tokensCliente =
+                await _context.DispositivosPush
+                    .Where(d =>
+                        d.UsuarioId ==
+                            pedido.UsuarioId &&
+                        d.Aplicacion ==
+                            "Cliente" &&
+                        d.Activo
+                    )
+                    .Select(d =>
+                        d.ExpoPushToken
+                    )
+                    .ToListAsync();
+
+            foreach (
+                var tokenPush in tokensCliente
+            )
+            {
+                await _expoPushService
+                    .EnviarNotificacionAsync(
+                        tokenPush,
+                        "Pedido recogido",
+                        $"Tu repartidor ya recogió el pedido #{pedido.Id}.",
+                        new
+                        {
+                            tipo = "Pedido",
+                            pedidoId = pedido.Id,
+                            estado = pedido.Estado
+                        }
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
+
         return Ok(new
         {
             pedido.Id,
@@ -1167,6 +1272,51 @@ public class RepartidoresController : ControllerBase
             "En camino";
 
         await _context.SaveChangesAsync();
+
+        // =========================
+        // NOTIFICAR AL CLIENTE
+        // PEDIDO EN CAMINO
+        // =========================
+        try
+        {
+            var tokensCliente =
+                await _context.DispositivosPush
+                    .Where(d =>
+                        d.UsuarioId ==
+                            pedido.UsuarioId &&
+                        d.Aplicacion ==
+                            "Cliente" &&
+                        d.Activo
+                    )
+                    .Select(d =>
+                        d.ExpoPushToken
+                    )
+                    .ToListAsync();
+
+            foreach (
+                var tokenPush in tokensCliente
+            )
+            {
+                await _expoPushService
+                    .EnviarNotificacionAsync(
+                        tokenPush,
+                        "Pedido en camino",
+                        $"Tu pedido #{pedido.Id} ya va en camino.",
+                        new
+                        {
+                            tipo = "Pedido",
+                            pedidoId = pedido.Id,
+                            estado = pedido.Estado
+                        }
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
 
         return Ok(new
         {
@@ -1253,6 +1403,51 @@ public class RepartidoresController : ControllerBase
             true;
 
         await _context.SaveChangesAsync();
+
+        // =========================
+        // NOTIFICAR AL CLIENTE
+        // PEDIDO ENTREGADO
+        // =========================
+        try
+        {
+            var tokensCliente =
+                await _context.DispositivosPush
+                    .Where(d =>
+                        d.UsuarioId ==
+                            pedido.UsuarioId &&
+                        d.Aplicacion ==
+                            "Cliente" &&
+                        d.Activo
+                    )
+                    .Select(d =>
+                        d.ExpoPushToken
+                    )
+                    .ToListAsync();
+
+            foreach (
+                var tokenPush in tokensCliente
+            )
+            {
+                await _expoPushService
+                    .EnviarNotificacionAsync(
+                        tokenPush,
+                        "Pedido entregado",
+                        $"Tu pedido #{pedido.Id} fue entregado correctamente.",
+                        new
+                        {
+                            tipo = "Pedido",
+                            pedidoId = pedido.Id,
+                            estado = pedido.Estado
+                        }
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
 
         return Ok(new
         {

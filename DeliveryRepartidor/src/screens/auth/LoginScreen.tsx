@@ -18,6 +18,10 @@ import {
 } from "react-native-safe-area-context";
 
 import {
+  Ionicons,
+} from "@expo/vector-icons";
+
+import {
   useAuth,
 } from "../../context/AuthContext";
 
@@ -32,6 +36,11 @@ export default function LoginScreen() {
 
   const [password, setPassword] =
     useState("");
+
+  const [
+    mostrarPassword,
+    setMostrarPassword,
+  ] = useState(false);
 
   const [mensaje, setMensaje] =
     useState("");
@@ -132,13 +141,39 @@ export default function LoginScreen() {
             Contraseña
           </Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Tu contraseña"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View
+            style={styles.passwordContainer}
+          >
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Tu contraseña"
+              secureTextEntry={
+                !mostrarPassword
+              }
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <Pressable
+              style={styles.eyeButton}
+              onPress={() =>
+                setMostrarPassword(
+                  (valorActual) =>
+                    !valorActual
+                )
+              }
+            >
+              <Ionicons
+                name={
+                  mostrarPassword
+                    ? "eye-off-outline"
+                    : "eye-outline"
+                }
+                size={22}
+                color="#666666"
+              />
+            </Pressable>
+          </View>
 
           {mensaje ? (
             <Text
@@ -249,6 +284,28 @@ const styles =
       marginBottom: 18,
       backgroundColor: "#ffffff",
       fontSize: 15,
+    },
+
+    passwordContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: "#dddddd",
+      borderRadius: 12,
+      backgroundColor: "#ffffff",
+      marginBottom: 18,
+    },
+
+    passwordInput: {
+      flex: 1,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      fontSize: 15,
+    },
+
+    eyeButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
     },
 
     error: {

@@ -59,3 +59,9 @@ DeliveryApi/appsettings.Production.json
 # Sensitive database scripts
 # =========================
 Database/DeliveryLocal_Azure.sql
+
+# =========================
+# Firebase private keys
+# =========================
+*firebase-adminsdk*.json
+*service-account*.json

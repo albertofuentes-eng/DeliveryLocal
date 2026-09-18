@@ -533,3 +533,35 @@ export async function obtenerMetricas(
     "No se pudieron cargar las métricas."
   );
 }
+
+// ==========================================
+// NOTIFICACIONES PUSH
+// ==========================================
+
+export async function registrarTokenPush(
+  token: string,
+  expoPushToken: string
+) {
+  const response = await fetch(
+    `${API_URL}/api/Notificaciones/registrar-token`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+
+      body: JSON.stringify({
+        expoPushToken,
+        aplicacion: "Repartidor",
+        plataforma: "Android",
+      }),
+    }
+  );
+
+  return await leerRespuesta(
+    response,
+    "No se pudo registrar el dispositivo para notificaciones."
+  );
+}

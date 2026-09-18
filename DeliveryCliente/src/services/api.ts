@@ -482,3 +482,60 @@ export async function obtenerPedidoPorId(
 
   return data;
 }
+
+// ========================================
+// NOTIFICACIONES PUSH
+// ========================================
+
+export async function registrarTokenPush(
+  token: string,
+  expoPushToken: string
+) {
+  const response = await fetch(
+    `${API_URL}/api/Notificaciones/registrar-token`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+
+        Authorization:
+          `Bearer ${token}`,
+      },
+
+      body: JSON.stringify({
+        expoPushToken,
+        aplicacion: "Cliente",
+        plataforma: "Android",
+      }),
+    }
+  );
+
+  const texto =
+    await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo registrar el dispositivo. Código: ${response.status}`
+    );
+  }
+
+  return data;
+}

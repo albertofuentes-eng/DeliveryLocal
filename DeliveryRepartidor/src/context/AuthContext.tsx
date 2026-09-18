@@ -11,8 +11,13 @@ import * as SecureStore
 
 import {
   login as loginApi,
+  registrarTokenPush,
   type UsuarioAuth,
 } from "../services/api";
+
+import {
+  obtenerExpoPushToken,
+} from "../services/notificaciones";
 
 type AuthContextType = {
   usuario: UsuarioAuth | null;
@@ -60,6 +65,31 @@ export function AuthProvider({
     cargarSesion();
   }, []);
 
+  async function registrarPush(
+    tokenJwt: string
+  ) {
+    try {
+      const expoPushToken =
+        await obtenerExpoPushToken();
+
+      if (expoPushToken) {
+        await registrarTokenPush(
+          tokenJwt,
+          expoPushToken
+        );
+
+        console.log(
+          "Token push del repartidor registrado correctamente."
+        );
+      }
+    } catch (error) {
+      console.log(
+        "No se pudo registrar el token push del repartidor:",
+        error
+      );
+    }
+  }
+
   async function cargarSesion() {
     try {
       const tokenGuardado =
@@ -82,6 +112,10 @@ export function AuthProvider({
           JSON.parse(
             usuarioGuardado
           )
+        );
+
+        await registrarPush(
+          tokenGuardado
         );
       }
     } catch {
@@ -116,6 +150,10 @@ export function AuthProvider({
     setToken(data.token);
 
     setUsuario(data.usuario);
+
+    await registrarPush(
+      data.token
+    );
 
     return data.usuario;
   }

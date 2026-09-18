@@ -6,7 +6,15 @@ import React, {
 } from "react";
 
 import * as SecureStore from "expo-secure-store";
-import { iniciarSesion as loginApi } from "../services/api";
+
+import {
+  iniciarSesion as loginApi,
+  registrarTokenPush,
+} from "../services/api";
+
+import {
+  obtenerExpoPushToken,
+} from "../services/notificaciones";
 
 type Usuario = {
   id: number;
@@ -52,6 +60,29 @@ export function AuthProvider({
     cargarSesion();
   }, []);
 
+  async function registrarPush(tokenJwt: string) {
+    try {
+      const expoPushToken =
+        await obtenerExpoPushToken();
+
+      if (expoPushToken) {
+        await registrarTokenPush(
+          tokenJwt,
+          expoPushToken
+        );
+
+        console.log(
+          "Token push registrado correctamente."
+        );
+      }
+    } catch (error) {
+      console.log(
+        "No se pudo registrar el token push:",
+        error
+      );
+    }
+  }
+
   async function cargarSesion() {
     try {
       const tokenGuardado =
@@ -63,6 +94,8 @@ export function AuthProvider({
       if (tokenGuardado && usuarioGuardado) {
         setToken(tokenGuardado);
         setUsuario(JSON.parse(usuarioGuardado));
+
+        await registrarPush(tokenGuardado);
       }
     } catch (error) {
       console.log("Error cargando sesión:", error);
@@ -75,7 +108,10 @@ export function AuthProvider({
     correo: string,
     password: string
   ) {
-    const data = await loginApi(correo, password);
+    const data = await loginApi(
+      correo,
+      password
+    );
 
     await SecureStore.setItemAsync(
       TOKEN_KEY,
@@ -89,6 +125,8 @@ export function AuthProvider({
 
     setToken(data.token);
     setUsuario(data.usuario);
+
+    await registrarPush(data.token);
   }
 
   async function cerrarSesion() {

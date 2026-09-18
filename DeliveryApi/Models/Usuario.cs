@@ -30,4 +30,7 @@ public class Usuario
 
     public ICollection<SolicitudRepartidor> SolicitudesRepartidorRevisadas { get; set; }
         = new List<SolicitudRepartidor>();
+
+    public ICollection<DispositivoPush> DispositivosPush { get; set; }
+    = new List<DispositivoPush>();
 }

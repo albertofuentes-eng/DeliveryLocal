@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using DeliveryApi.Services;
 
 namespace DeliveryApi.Controllers;
 
@@ -14,10 +15,15 @@ namespace DeliveryApi.Controllers;
 public class PedidosController : ControllerBase
 {
     private readonly DeliveryDbContext _context;
+    private readonly ExpoPushService _expoPushService;
 
-    public PedidosController(DeliveryDbContext context)
+    public PedidosController(
+        DeliveryDbContext context,
+        ExpoPushService expoPushService
+    )
     {
         _context = context;
+        _expoPushService = expoPushService;
     }
 
     // =========================
@@ -1011,6 +1017,179 @@ public class PedidosController : ControllerBase
             dto.Estado;
 
         await _context.SaveChangesAsync();
+
+        // =========================
+        // NOTIFICACIONES PUSH
+        // =========================
+        //
+        // Una falla en Expo NO debe impedir
+        // que el estado del pedido se actualice.
+        //
+        try
+        {
+            string? tituloCliente = null;
+            string? mensajeCliente = null;
+
+            switch (pedido.Estado)
+            {
+                case "Confirmado":
+                    tituloCliente =
+                        "Pedido confirmado";
+
+                    mensajeCliente =
+                        $"Tu pedido #{pedido.Id} fue confirmado por el comercio.";
+
+                    break;
+
+                case "Preparando":
+                    tituloCliente =
+                        "Preparando tu pedido";
+
+                    mensajeCliente =
+                        $"Tu pedido #{pedido.Id} ya está siendo preparado.";
+
+                    break;
+
+                case "Listo para recoger":
+                    tituloCliente =
+                        "Pedido listo";
+
+                    if (pedido.TipoEntrega == "Domicilio")
+                    {
+                        mensajeCliente =
+                            $"Tu pedido #{pedido.Id} está listo. Estamos buscando un repartidor.";
+                    }
+                    else
+                    {
+                        mensajeCliente =
+                            $"Tu pedido #{pedido.Id} está listo para que lo recojas.";
+                    }
+
+                    break;
+
+                case "Rechazado":
+                    tituloCliente =
+                        "Pedido rechazado";
+
+                    mensajeCliente =
+                        $"Tu pedido #{pedido.Id} fue rechazado por el comercio.";
+
+                    break;
+            }
+
+            // =========================
+            // NOTIFICAR AL CLIENTE
+            // =========================
+            if (
+                tituloCliente != null &&
+                mensajeCliente != null
+            )
+            {
+                var tokensCliente =
+                    await _context.DispositivosPush
+                        .Where(d =>
+                            d.UsuarioId ==
+                                pedido.UsuarioId &&
+                            d.Aplicacion ==
+                                "Cliente" &&
+                            d.Activo
+                        )
+                        .Select(d =>
+                            d.ExpoPushToken
+                        )
+                        .ToListAsync();
+
+                foreach (
+                    var tokenPush in
+                    tokensCliente
+                )
+                {
+                    await _expoPushService
+                        .EnviarNotificacionAsync(
+                            tokenPush,
+                            tituloCliente,
+                            mensajeCliente,
+                            new
+                            {
+                                tipo = "Pedido",
+                                pedidoId = pedido.Id,
+                                estado = pedido.Estado
+                            }
+                        );
+                }
+            }
+
+            // =========================
+            // AVISAR A REPARTIDORES
+            // =========================
+            //
+            // El pedido aparece para repartidores
+            // cuando está "Listo para recoger".
+            //
+            if (
+                pedido.Estado ==
+                    "Listo para recoger" &&
+                pedido.TipoEntrega ==
+                    "Domicilio"
+            )
+            {
+                var usuariosRepartidores =
+                    await _context.Repartidores
+                        .Where(r =>
+                            r.Activo &&
+                            r.Disponible
+                        )
+                        .Select(r =>
+                            r.UsuarioId
+                        )
+                        .ToListAsync();
+
+                if (usuariosRepartidores.Count > 0)
+                {
+                    var tokensRepartidores =
+                        await _context.DispositivosPush
+                            .Where(d =>
+                                usuariosRepartidores.Contains(
+                                    d.UsuarioId
+                                ) &&
+                                d.Aplicacion ==
+                                    "Repartidor" &&
+                                d.Activo
+                            )
+                            .Select(d =>
+                                d.ExpoPushToken
+                            )
+                            .ToListAsync();
+
+                    foreach (
+                        var tokenPush in
+                        tokensRepartidores
+                    )
+                    {
+                        await _expoPushService
+                            .EnviarNotificacionAsync(
+                                tokenPush,
+                                "Nuevo pedido disponible",
+                                $"El pedido #{pedido.Id} está listo para recoger.",
+                                new
+                                {
+                                    tipo =
+                                        "PedidoDisponible",
+
+                                    pedidoId =
+                                        pedido.Id
+                                }
+                            );
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"Error enviando notificación push: {ex.Message}"
+            );
+        }
 
         return Ok(new
         {
