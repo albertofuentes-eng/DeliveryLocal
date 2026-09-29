@@ -54,6 +54,19 @@ export type RepartidorAdmin = {
   totalEntregas: number;
 };
 
+export type ComercioAdmin = {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  direccion: string;
+  telefono: string | null;
+  imagenUrl: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  activo: boolean;
+  fechaCreacion: string;
+};
+
 function manejarSesionExpirada(
   response: Response
 ) {
@@ -325,6 +338,49 @@ export async function obtenerRepartidores(
       data?.message ||
         data?.mensaje ||
         "No se pudieron cargar los repartidores."
+    );
+  }
+
+  return data;
+}
+
+export async function obtenerComerciosAdmin(
+  token: string
+): Promise<ComercioAdmin[]> {
+  const response = await fetch(
+    `${API_URL}/api/Comercios/admin`,
+    {
+      headers: {
+        Authorization:
+          `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (
+    manejarSesionExpirada(
+      response
+    )
+  ) {
+    throw new Error(
+      "Sesión expirada."
+    );
+  }
+
+  let data: any = null;
+
+  try {
+    data =
+      await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        data?.mensaje ||
+        "No se pudieron cargar los comercios."
     );
   }
 

@@ -20,6 +20,9 @@ import DashboardPage
 import SolicitudesPage
   from "./pages/SolicitudesPage";
 
+import ComerciosPage
+  from "./pages/ComerciosPage";
+
 function RutaAdministrador({
   children,
 }: {
@@ -135,6 +138,15 @@ function App() {
         element={
           <RutaAdministrador>
             <SolicitudesPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/comercios"
+        element={
+          <RutaAdministrador>
+            <ComerciosPage />
           </RutaAdministrador>
         }
       />

@@ -7,6 +7,9 @@ import type {
   CSSProperties,
 } from "react";
 
+import AdminSidebar
+  from "../components/AdminSidebar";
+
 import {
   useNavigate,
 } from "react-router-dom";
@@ -220,96 +223,7 @@ export default function SolicitudesPage() {
 
   return (
     <div style={styles.page}>
-      <aside style={styles.sidebar}>
-        <div>
-          <div style={styles.brand}>
-            <div style={styles.logo}>
-              DA
-            </div>
-
-            <div>
-              <div
-                style={
-                  styles.brandTitle
-                }
-              >
-                DeliveryAdmin
-              </div>
-
-              <div
-                style={
-                  styles.brandSubtitle
-                }
-              >
-                DeliveryLocal
-              </div>
-            </div>
-          </div>
-
-          <nav style={styles.menu}>
-            <button
-              style={styles.menuButton}
-              onClick={() =>
-                navigate(
-                  "/dashboard"
-                )
-              }
-            >
-              🏠 Dashboard
-            </button>
-
-            <button
-              style={{
-                ...styles.menuButton,
-                ...styles.menuActive,
-              }}
-            >
-              🛵 Solicitudes
-            </button>
-
-            <button
-              style={styles.menuButton}
-            >
-              👤 Repartidores
-            </button>
-
-            <button
-              style={styles.menuButton}
-            >
-              🏪 Comercios
-            </button>
-
-            <button
-              style={styles.menuButton}
-            >
-              👥 Clientes
-            </button>
-
-            <button
-              style={styles.menuButton}
-            >
-              📦 Pedidos
-            </button>
-
-            <button
-              style={styles.menuButton}
-            >
-              📊 Métricas
-            </button>
-          </nav>
-        </div>
-
-        <button
-          style={styles.backButton}
-          onClick={() =>
-            navigate(
-              "/dashboard"
-            )
-          }
-        >
-          ← Volver al Dashboard
-        </button>
-      </aside>
+     <AdminSidebar />
 
       <main style={styles.main}>
         <header

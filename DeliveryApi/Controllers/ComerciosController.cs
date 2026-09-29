@@ -35,6 +35,52 @@ public class ComerciosController : ControllerBase
     }
 
     // =========================
+    // GET: api/Comercios/admin
+    // Solo Administrador
+    // =========================
+    [Authorize]
+    [HttpGet("admin")]
+    public async Task<IActionResult> GetComerciosAdmin()
+    {
+        var rol =
+            User.FindFirstValue(
+                ClaimTypes.Role
+            );
+
+        if (rol != "Administrador")
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    mensaje =
+                        "Solo un administrador puede consultar todos los comercios."
+                }
+            );
+        }
+
+        var comercios =
+            await _context.Comercios
+                .OrderBy(c => c.Nombre)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Nombre,
+                    c.Descripcion,
+                    c.Direccion,
+                    c.Telefono,
+                    c.ImagenUrl,
+                    c.Latitud,
+                    c.Longitud,
+                    c.Activo,
+                    c.FechaCreacion
+                })
+                .ToListAsync();
+
+        return Ok(comercios);
+    }
+
+    // =========================
     // GET: api/Comercios/1
     // Público
     // =========================
