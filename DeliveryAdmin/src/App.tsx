@@ -23,6 +23,15 @@ import SolicitudesPage
 import ComerciosPage
   from "./pages/ComerciosPage";
 
+import ClientesPage
+  from "./pages/ClientesPage";
+
+import PedidosPage 
+  from "./pages/PedidosPage";
+
+import MetricasPage 
+  from "./pages/MetricasPage";
+
 function RutaAdministrador({
   children,
 }: {
@@ -147,6 +156,33 @@ function App() {
         element={
           <RutaAdministrador>
             <ComerciosPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/clientes"
+        element={
+          <RutaAdministrador>
+            <ClientesPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/pedidos"
+        element={
+          <RutaAdministrador>
+            <PedidosPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/metricas"
+        element={
+          <RutaAdministrador>
+            <MetricasPage />
           </RutaAdministrador>
         }
       />

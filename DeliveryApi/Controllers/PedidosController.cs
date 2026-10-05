@@ -526,6 +526,87 @@ public class PedidosController : ControllerBase
         return Ok(pedidos);
     }
 
+    // GET: api/Pedidos/admin
+// Obtiene todos los pedidos para el panel administrativo.
+[HttpGet("admin")]
+[Authorize(Roles = "Administrador")]
+public async Task<IActionResult> ObtenerPedidosAdmin()
+{
+    var pedidos = await _context.Pedidos
+        .AsNoTracking()
+        .Include(p => p.Usuario)
+        .Include(p => p.Comercio)
+        .Include(p => p.Repartidor)
+            .ThenInclude(r => r!.Usuario)
+        .Include(p => p.Detalles)
+            .ThenInclude(d => d.Producto)
+        .OrderByDescending(p => p.Fecha)
+        .Select(p => new
+        {
+            id = p.Id,
+
+            fecha = p.Fecha,
+            fechaEntrega = p.FechaEntrega,
+            fechaProgramada = p.FechaProgramada,
+
+            estado = p.Estado,
+
+            tipoEntrega = p.TipoEntrega,
+            tipoTiempo = p.TipoTiempo,
+
+            direccionEntrega = p.DireccionEntrega,
+            latitudEntrega = p.LatitudEntrega,
+            longitudEntrega = p.LongitudEntrega,
+            telefonoEntrega = p.TelefonoEntrega,
+            referenciaEntrega = p.ReferenciaEntrega,
+            indicacionesEntrega = p.IndicacionesEntrega,
+
+            subtotal = p.Subtotal,
+            envio = p.Envio,
+            total = p.Total,
+
+            cliente = new
+            {
+                id = p.Usuario.Id,
+                nombre = p.Usuario.Nombre,
+                correo = p.Usuario.Correo,
+                telefono = p.Usuario.Telefono
+            },
+
+            comercio = new
+            {
+                id = p.Comercio.Id,
+                nombre = p.Comercio.Nombre,
+                direccion = p.Comercio.Direccion,
+                telefono = p.Comercio.Telefono
+            },
+
+            repartidor = p.Repartidor == null
+                ? null
+                : new
+                {
+                    id = p.Repartidor.Id,
+                    nombre = p.Repartidor.Usuario.Nombre,
+                    telefono = p.Repartidor.Usuario.Telefono,
+                    tipoVehiculo = p.Repartidor.TipoVehiculo,
+                    placa = p.Repartidor.Placa
+                },
+
+            detalles = p.Detalles.Select(d => new
+            {
+                id = d.Id,
+                productoId = d.ProductoId,
+                producto = d.Producto.Nombre,
+                cantidad = d.Cantidad,
+                precioUnitario = d.PrecioUnitario,
+                subtotal = d.Subtotal
+            }).ToList()
+        })
+        .ToListAsync();
+
+    return Ok(pedidos);
+}
+
         // =========================
     // GET: api/Pedidos/comercio
     // =========================
@@ -759,9 +840,7 @@ public class PedidosController : ControllerBase
         return Ok(pedido);
     }
 
-    // =========================
-    // PUT: api/Pedidos/5/estado
-    // =========================
+    
     // =========================
     // PUT: api/Pedidos/5/estado
     // =========================
@@ -1200,5 +1279,4 @@ public class PedidosController : ControllerBase
                 "Estado del pedido actualizado correctamente."
         });
     }
-
 }

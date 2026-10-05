@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 * {
   box-sizing: border-box;
 }
@@ -20,4 +22,4 @@ body {
 button,
 input {
   font: inherit;
-}
+} 

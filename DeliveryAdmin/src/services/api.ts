@@ -67,6 +67,123 @@ export type ComercioAdmin = {
   fechaCreacion: string;
 };
 
+export type ClienteAdmin = {
+  id: number;
+  nombre: string;
+  correo: string;
+  telefono: string | null;
+  activo: boolean;
+  fechaCreacion: string;
+};
+
+export type DetallePedidoAdmin = {
+  id: number;
+  productoId: number;
+  producto: string;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+};
+
+export type PedidoAdmin = {
+  id: number;
+
+  fecha: string;
+  fechaEntrega: string | null;
+  fechaProgramada: string | null;
+
+  estado: string;
+
+  tipoEntrega: string;
+  tipoTiempo: string;
+
+  direccionEntrega: string | null;
+  latitudEntrega: number | null;
+  longitudEntrega: number | null;
+  telefonoEntrega: string | null;
+  referenciaEntrega: string | null;
+  indicacionesEntrega: string | null;
+
+  subtotal: number;
+  envio: number;
+  total: number;
+
+  cliente: {
+    id: number;
+    nombre: string;
+    correo: string;
+    telefono: string | null;
+  };
+
+  comercio: {
+    id: number;
+    nombre: string;
+    direccion: string;
+    telefono: string | null;
+  };
+
+  repartidor: {
+    id: number;
+    nombre: string;
+    telefono: string | null;
+    tipoVehiculo: string;
+    placa: string | null;
+  } | null;
+
+  detalles: DetallePedidoAdmin[];
+};
+
+export type MetricasAdmin = {
+  resumen: {
+    totalPedidos: number;
+    pedidosPendientes: number;
+    pedidosEnProceso: number;
+    pedidosEntregados: number;
+    pedidosRechazados: number;
+  };
+
+  ventas: {
+    ventasTotales: number;
+    subtotalTotal: number;
+    enviosTotales: number;
+  };
+
+  clientes: {
+    totalClientes: number;
+    clientesActivos: number;
+  };
+
+  comercios: {
+    totalComercios: number;
+    comerciosActivos: number;
+  };
+
+  repartidores: {
+    totalRepartidores: number;
+    repartidoresActivos: number;
+    repartidoresDisponibles: number;
+  };
+
+  pedidosPorEstado: {
+    estado: string;
+    cantidad: number;
+  }[];
+
+  pedidosPorComercio: {
+    comercioId: number;
+    comercio: string;
+    pedidos: number;
+    ventas: number;
+  }[];
+
+  pedidosPorRepartidor: {
+    repartidorId: number;
+    repartidor: string;
+    pedidos: number;
+    entregados: number;
+  }[];
+};
+
 function manejarSesionExpirada(
   response: Response
 ) {
@@ -381,6 +498,111 @@ export async function obtenerComerciosAdmin(
       data?.message ||
         data?.mensaje ||
         "No se pudieron cargar los comercios."
+    );
+  }
+
+  return data;
+}
+
+export async function obtenerPedidosAdmin(
+  token: string
+): Promise<PedidoAdmin[]> {
+  const response = await fetch(
+    `${API_URL}/api/Pedidos/admin`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (manejarSesionExpirada(response)) {
+    throw new Error("Sesión expirada.");
+  }
+
+  let data: any = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        data?.mensaje ||
+        "No se pudieron cargar los pedidos."
+    );
+  }
+
+  return data;
+}
+
+export async function obtenerClientesAdmin(
+  token: string
+): Promise<ClienteAdmin[]> {
+  const response = await fetch(
+    `${API_URL}/api/Usuario/clientes`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (manejarSesionExpirada(response)) {
+    throw new Error("Sesión expirada.");
+  }
+
+  let data: any = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        data?.mensaje ||
+        "No se pudieron cargar los clientes."
+    );
+  }
+
+  return data;
+}
+
+export async function obtenerMetricasAdmin(
+  token: string
+): Promise<MetricasAdmin> {
+  const response = await fetch(
+    `${API_URL}/api/Metricas/admin`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (manejarSesionExpirada(response)) {
+    throw new Error("Sesión expirada.");
+  }
+
+  let data: any = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        data?.mensaje ||
+        "No se pudieron cargar las métricas."
     );
   }
 

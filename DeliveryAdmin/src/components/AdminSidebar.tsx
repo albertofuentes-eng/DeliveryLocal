@@ -43,19 +43,19 @@ const opciones: MenuItem[] = [
     texto: "Clientes",
     icono: "👥",
     ruta: "/clientes",
-    disponible: false,
+    disponible: true,
   },
   {
     texto: "Pedidos",
     icono: "📦",
     ruta: "/pedidos",
-    disponible: false,
+    disponible: true,
   },
   {
     texto: "Métricas",
     icono: "📊",
     ruta: "/metricas",
-    disponible: false,
+    disponible: true,
   },
 ];
 
