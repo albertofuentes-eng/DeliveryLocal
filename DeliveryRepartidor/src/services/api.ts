@@ -421,11 +421,19 @@ export async function marcarPedidoEnCamino(
 // ==========================================
 // MARCAR ENTREGADO
 // ==========================================
-
 export async function marcarPedidoEntregado(
   token: string,
-  pedidoId: number
+  pedidoId: number,
+  codigoEntrega: string
 ) {
+  const codigo = codigoEntrega.trim().toUpperCase();
+
+  if (!codigo) {
+    throw new Error(
+      "Debes ingresar el código de entrega del cliente."
+    );
+  }
+
   const response = await fetch(
     `${API_URL}/api/Repartidores/pedidos/${pedidoId}/entregado`,
     {
@@ -433,7 +441,12 @@ export async function marcarPedidoEntregado(
 
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
+
+      body: JSON.stringify({
+        tokenEntrega: codigo,
+      }),
     }
   );
 
@@ -442,6 +455,7 @@ export async function marcarPedidoEntregado(
     "No se pudo completar la entrega."
   );
 }
+
 
 // ==========================================
 // HISTORIAL
@@ -494,7 +508,7 @@ export async function obtenerHistorial(
     response,
     "No se pudo cargar el historial."
   );
-  
+
 }
 
 export type MetricasPeriodo = {
@@ -563,5 +577,230 @@ export async function registrarTokenPush(
   return await leerRespuesta(
     response,
     "No se pudo registrar el dispositivo para notificaciones."
+  );
+}
+
+
+//
+// ==========================================
+// FASE 4: INCIDENCIAS DE ENTREGA
+// ==========================================
+//
+
+export type CrearIncidenciaRequest = {
+  pedidoId: number;
+  motivo: string;
+  descripcion: string;
+};
+
+export type IncidenciaCreada = {
+  id: number;
+  pedidoId: number;
+  motivo: string;
+  descripcion: string;
+  estado: string;
+  evidenciaUrl?: string | null;
+};
+
+export async function crearIncidencia(
+  token: string,
+  datos: CrearIncidenciaRequest
+): Promise<IncidenciaCreada> {
+  if (!Number.isInteger(datos.pedidoId) || datos.pedidoId <= 0) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  if (!datos.motivo.trim()) {
+    throw new Error("Selecciona un motivo.");
+  }
+
+  if (!datos.descripcion.trim()) {
+    throw new Error("Describe lo sucedido.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Incidencias`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pedidoId: datos.pedidoId,
+        motivo: datos.motivo.trim(),
+        descripcion: datos.descripcion.trim(),
+      }),
+    }
+  );
+
+  return await leerRespuesta(
+    response,
+    "No se pudo registrar la incidencia."
+  );
+}
+
+// ==========================================
+// FASE 4: SUBIR FOTOGRAFÍA DE EVIDENCIA
+// ==========================================
+
+export async function subirEvidenciaIncidencia(
+  token: string,
+  incidenciaId: number,
+  imagenUri: string
+) {
+  if (!Number.isInteger(incidenciaId) || incidenciaId <= 0) {
+    throw new Error("La incidencia no es válida.");
+  }
+
+  if (!imagenUri) {
+    throw new Error("Selecciona una fotografía.");
+  }
+
+  const uriSinParametros = imagenUri.split("?")[0];
+  const extensionOriginal = uriSinParametros
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+
+  const extension =
+    extensionOriginal === "png" ||
+    extensionOriginal === "webp" ||
+    extensionOriginal === "jpg" ||
+    extensionOriginal === "jpeg"
+      ? extensionOriginal
+      : "jpg";
+
+  const mimeType =
+    extension === "png"
+      ? "image/png"
+      : extension === "webp"
+        ? "image/webp"
+        : "image/jpeg";
+
+  const formData = new FormData();
+
+  formData.append(
+    "archivo",
+    {
+      uri: imagenUri,
+      name: `evidencia-${incidenciaId}.${extension}`,
+      type: mimeType,
+    } as any
+  );
+
+  const response = await fetch(
+    `${API_URL}/api/Incidencias/${incidenciaId}/evidencia`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    }
+  );
+
+  return await leerRespuesta(
+    response,
+    "No se pudo subir la fotografía."
+  );
+}
+
+
+//
+// ==========================================
+// FASE 5: CALIFICACIONES DE CLIENTES
+// ==========================================
+//
+
+export type CalificacionPedido = {
+  id: number;
+  pedidoId: number;
+  tipo: "ClienteARepartidor" | "RepartidorACliente";
+  puntuacion: number;
+  comentario: string | null;
+  fechaCreacion: string;
+  emisorUsuarioId: number;
+  receptorUsuarioId: number;
+};
+
+export type CrearCalificacionRequest = {
+  pedidoId: number;
+  puntuacion: number;
+  comentario?: string | null;
+};
+
+// Consultar calificaciones de un pedido
+export async function obtenerCalificacionesPedido(
+  token: string,
+  pedidoId: number
+): Promise<CalificacionPedido[]> {
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Calificaciones/pedido/${pedidoId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await leerRespuesta(
+    response,
+    "No se pudieron consultar las calificaciones."
+  );
+
+  if (!Array.isArray(data)) {
+    throw new Error("El servidor no devolvió una lista válida.");
+  }
+
+  return data;
+}
+
+// Calificar al cliente después de la entrega
+export async function crearCalificacionPedido(
+  token: string,
+  datos: CrearCalificacionRequest
+) {
+  if (!Number.isInteger(datos.pedidoId) || datos.pedidoId <= 0) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  if (
+    !Number.isInteger(datos.puntuacion) ||
+    datos.puntuacion < 1 ||
+    datos.puntuacion > 5
+  ) {
+    throw new Error("Selecciona entre 1 y 5 estrellas.");
+  }
+
+  const comentario = datos.comentario?.trim() || null;
+
+  if (comentario && comentario.length > 500) {
+    throw new Error("El comentario no puede superar 500 caracteres.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Calificaciones`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pedidoId: datos.pedidoId,
+        puntuacion: datos.puntuacion,
+        comentario,
+      }),
+    }
+  );
+
+  return await leerRespuesta(
+    response,
+    "No se pudo registrar la calificación."
   );
 }

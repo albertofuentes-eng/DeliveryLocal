@@ -4,10 +4,14 @@ const API_URL = "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-0
 // COMERCIOS
 // ========================================
 
-export async function obtenerComercios() {
-  const response = await fetch(
-    `${API_URL}/api/Comercios`
-  );
+export async function obtenerComercios(
+  municipio?: string
+) {
+  const url = municipio
+    ? `${API_URL}/api/Comercios?municipio=${encodeURIComponent(municipio)}`
+    : `${API_URL}/api/Comercios`;
+
+  const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(
@@ -296,6 +300,7 @@ export async function crearPedido(
   token: string,
   datos: {
     comercioId: number;
+    metodoPago?: "Efectivo" | "Transferencia";
 
     tipoEntrega:
       | "Domicilio"
@@ -534,6 +539,213 @@ export async function registrarTokenPush(
     throw new Error(
       data?.mensaje ||
         `No se pudo registrar el dispositivo. Código: ${response.status}`
+    );
+  }
+
+  return data;
+}
+
+
+/* ==========================================
+   FASE 3: CÓDIGO DE SEGURIDAD DEL CLIENTE
+   ========================================== */
+
+export type TokenEntregaCliente = {
+  disponible: boolean;
+  tokenEntrega: string | null;
+  mensaje: string;
+};
+
+export async function obtenerTokenEntregaPedido(
+  token: string,
+  pedidoId: number
+): Promise<TokenEntregaCliente> {
+  const response = await fetch(
+    `${API_URL}/api/Pedidos/${pedidoId}/token-entrega`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const texto = await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo obtener el código. Error ${response.status}.`
+    );
+  }
+
+  return {
+    disponible: data?.disponible === true,
+    tokenEntrega: data?.tokenEntrega ?? null,
+    mensaje:
+      data?.mensaje ?? "No hay un código disponible.",
+  };
+}
+
+
+/* ==========================================
+   FASE 5: CALIFICACIONES DEL CLIENTE
+   ========================================== */
+
+export type CalificacionPedidoCliente = {
+  id: number;
+  pedidoId: number;
+  tipo: "ClienteARepartidor" | "RepartidorACliente";
+  puntuacion: number;
+  comentario: string | null;
+  fechaCreacion: string;
+  emisorUsuarioId: number;
+  receptorUsuarioId: number;
+};
+
+export type CrearCalificacionCliente = {
+  pedidoId: number;
+  puntuacion: number;
+  comentario?: string | null;
+};
+
+// Consultar si el pedido ya fue calificado.
+export async function obtenerCalificacionesPedido(
+  token: string,
+  pedidoId: number
+): Promise<CalificacionPedidoCliente[]> {
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Calificaciones/pedido/${pedidoId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const texto = await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudieron consultar las calificaciones. Error ${response.status}.`
+    );
+  }
+
+  if (!Array.isArray(data)) {
+    throw new Error(
+      "El servidor no devolvió una lista válida de calificaciones."
+    );
+  }
+
+  return data;
+}
+
+// Registrar calificación del repartidor.
+export async function crearCalificacionPedido(
+  token: string,
+  datos: CrearCalificacionCliente
+) {
+  if (
+    !Number.isInteger(datos.pedidoId) ||
+    datos.pedidoId <= 0
+  ) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  if (
+    !Number.isInteger(datos.puntuacion) ||
+    datos.puntuacion < 1 ||
+    datos.puntuacion > 5
+  ) {
+    throw new Error(
+      "Selecciona una calificación entre 1 y 5 estrellas."
+    );
+  }
+
+  const comentario = datos.comentario?.trim() || null;
+
+  if (comentario && comentario.length > 500) {
+    throw new Error(
+      "El comentario no puede superar los 500 caracteres."
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Calificaciones`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        pedidoId: datos.pedidoId,
+        puntuacion: datos.puntuacion,
+        comentario,
+      }),
+    }
+  );
+
+  const texto = await response.text();
+
+  let data: any = null;
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      "Tu sesión expiró. Inicia sesión nuevamente."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo registrar la calificación. Error ${response.status}.`
     );
   }
 

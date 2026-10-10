@@ -19,6 +19,25 @@ public class DeliveryDbContext : DbContext
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<DetallePedido> DetallesPedido => Set<DetallePedido>();
 
+    // FASE 3: Historial de transacciones de pago
+    public DbSet<TransaccionPago> TransaccionesPago
+        => Set<TransaccionPago>();
+
+    // FASE 3: Liquidaciones de comercios y DeliveryLocal
+    public DbSet<LiquidacionPago> LiquidacionesPago
+        => Set<LiquidacionPago>();
+
+    // FASE 4: Incidencias reportadas durante las entregas
+    public DbSet<IncidenciaPedido> IncidenciasPedido
+        => Set<IncidenciaPedido>();
+
+    // ==========================================
+    // FASE 5: CALIFICACIONES ENTRE USUARIOS
+    // ==========================================
+
+    public DbSet<CalificacionPedido> CalificacionesPedido
+        => Set<CalificacionPedido>();
+
     // NUEVO
     public DbSet<SolicitudRepartidor> SolicitudesRepartidor
         => Set<SolicitudRepartidor>();
@@ -219,6 +238,48 @@ public class DeliveryDbContext : DbContext
             entity.Property(p => p.Total)
                 .HasColumnType("decimal(10,2)");
 
+
+            // ==========================================
+            // FASE 3: PAGOS Y DISTRIBUCIÓN DE DINERO
+            // ==========================================
+
+            entity.Property(p => p.MontoComercio)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(p => p.MontoDeliveryLocal)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(p => p.ComisionPasarela)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(p => p.MetodoPago)
+                .HasMaxLength(30)
+                .HasDefaultValue("Efectivo")
+                .IsRequired();
+
+            entity.Property(p => p.EstadoPago)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(p => p.ComprobantePagoUrl)
+                .HasMaxLength(500);
+
+            entity.Property(p => p.ReferenciaPagoExterno)
+                .HasMaxLength(150);
+
+            entity.Property(p => p.ProveedorPago)
+                .HasMaxLength(50);
+
+            entity.Property(p => p.EstadoLiquidacion)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(p => p.TokenEntrega)
+                .HasMaxLength(100);
+
+
             entity.HasOne(p => p.Usuario)
                 .WithMany()
                 .HasForeignKey(p => p.UsuarioId)
@@ -363,6 +424,250 @@ public class DeliveryDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        
+
+        // ==========================================
+        // FASE 3: TRANSACCIONES DE PAGO
+        // ==========================================
+
+        modelBuilder.Entity<TransaccionPago>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+
+            // Importe de la transacción
+            entity.Property(t => t.Monto)
+                .HasColumnType("decimal(10,2)")
+                .IsRequired();
+
+            // Moneda: GTQ
+            entity.Property(t => t.Moneda)
+                .HasMaxLength(3)
+                .HasDefaultValue("GTQ")
+                .IsRequired();
+
+            // Pendiente / Aprobado / Rechazado / Reembolsado
+            entity.Property(t => t.Estado)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(t => t.Proveedor)
+                .HasMaxLength(50);
+
+            entity.Property(t => t.ReferenciaExterna)
+                .HasMaxLength(150);
+
+            entity.Property(t => t.ClaveIdempotencia)
+                .HasMaxLength(150);
+
+            entity.Property(t => t.Observacion)
+                .HasMaxLength(500);
+
+            // Un pedido puede tener varios intentos de pago.
+            // Cada transacción pertenece a un solo pedido.
+            entity.HasOne(t => t.Pedido)
+                .WithMany()
+                .HasForeignKey(t => t.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Consultas rápidas por pedido
+            entity.HasIndex(t => t.PedidoId);
+
+            // Evita registrar dos transacciones con
+            // la misma clave de idempotencia.
+            entity.HasIndex(t => t.ClaveIdempotencia)
+                .IsUnique()
+                .HasFilter("[ClaveIdempotencia] IS NOT NULL");
+
+            // Una referencia externa no debe repetirse
+            // dentro del mismo proveedor.
+            entity.HasIndex(t => new
+            {
+                t.Proveedor,
+                t.ReferenciaExterna
+            })
+            .IsUnique()
+            .HasFilter(
+                "[Proveedor] IS NOT NULL AND " +
+                "[ReferenciaExterna] IS NOT NULL"
+            );
+        });
+
+
+        // ==========================================
+        // FASE 3: LIQUIDACIONES DE PAGOS
+        // ==========================================
+
+        modelBuilder.Entity<LiquidacionPago>(entity =>
+        {
+            entity.HasKey(l => l.Id);
+
+            entity.Property(l => l.Beneficiario)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(l => l.MontoBruto)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(l => l.Comision)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(l => l.MontoNeto)
+                .HasColumnType("decimal(10,2)");
+
+            entity.Property(l => l.Estado)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(l => l.Proveedor)
+                .HasMaxLength(50);
+
+            entity.Property(l => l.ReferenciaExterna)
+                .HasMaxLength(150);
+
+            entity.Property(l => l.Observacion)
+                .HasMaxLength(500);
+
+            // Un pedido puede tener liquidaciones
+            // para diferentes beneficiarios.
+            entity.HasOne(l => l.Pedido)
+                .WithMany()
+                .HasForeignKey(l => l.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(l => l.PedidoId);
+
+            // Una liquidación por beneficiario
+            // para cada pedido en este diseño.
+            entity.HasIndex(l => new
+            {
+                l.PedidoId,
+                l.Beneficiario
+            })
+            .IsUnique();
+        });
+
+
+        // ==========================================
+        // FASE 4: INCIDENCIAS DE PEDIDOS
+        // ==========================================
+
+        modelBuilder.Entity<IncidenciaPedido>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+
+            entity.Property(i => i.Motivo)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(i => i.Descripcion)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            entity.Property(i => i.EvidenciaUrl)
+                .HasMaxLength(500);
+
+            entity.Property(i => i.Estado)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(i => i.Resolucion)
+                .HasMaxLength(1000);
+
+            // Relación con el pedido
+            entity.HasOne(i => i.Pedido)
+                .WithMany()
+                .HasForeignKey(i => i.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Relación con el repartidor
+            entity.HasOne(i => i.Repartidor)
+                .WithMany()
+                .HasForeignKey(i => i.RepartidorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Índices para consultar incidencias
+            entity.HasIndex(i => i.PedidoId);
+
+            entity.HasIndex(i => i.RepartidorId);
+
+            entity.HasIndex(i => i.Estado);
+        });
+
+
+        // ==========================================
+        // FASE 5: CALIFICACIONES DE PEDIDOS
+        // ==========================================
+
+        modelBuilder.Entity<CalificacionPedido>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+
+            // ClienteARepartidor / RepartidorACliente
+            entity.Property(c => c.Tipo)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            // Calificación de 1 a 5 estrellas
+            entity.Property(c => c.Puntuacion)
+                .IsRequired();
+
+            // Comentario opcional
+            entity.Property(c => c.Comentario)
+                .HasMaxLength(500);
+
+            entity.Property(c => c.FechaCreacion)
+                .IsRequired();
+
+            // Relación con el pedido
+            entity.HasOne(c => c.Pedido)
+                .WithMany()
+                .HasForeignKey(c => c.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Usuario que realiza la calificación
+            entity.HasOne(c => c.EmisorUsuario)
+                .WithMany()
+                .HasForeignKey(c => c.EmisorUsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Usuario que recibe la calificación
+            entity.HasOne(c => c.ReceptorUsuario)
+                .WithMany()
+                .HasForeignKey(c => c.ReceptorUsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Impide calificar dos veces en la misma
+            // dirección para un mismo pedido.
+            entity.HasIndex(c => new
+            {
+                c.PedidoId,
+                c.Tipo
+            })
+            .IsUnique();
+
+            // Facilita calcular reputaciones
+            entity.HasIndex(c => c.ReceptorUsuarioId);
+
+            // Validaciones a nivel de SQL Server
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "CK_CalificacionesPedido_Puntuacion",
+                    "[Puntuacion] BETWEEN 1 AND 5"
+                );
+
+                t.HasCheckConstraint(
+                    "CK_CalificacionesPedido_Tipo",
+                    "[Tipo] IN ('ClienteARepartidor', 'RepartidorACliente')"
+                );
+
+                t.HasCheckConstraint(
+                    "CK_CalificacionesPedido_UsuariosDistintos",
+                    "[EmisorUsuarioId] <> [ReceptorUsuarioId]"
+                );
+            });
+        });
     }
 }

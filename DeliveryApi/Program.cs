@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Controladores
 builder.Services.AddControllers();
 
+builder.Services.AddHostedService<PedidosTimeoutService>();
+
 // Entity Framework + SQL Server
 builder.Services.AddDbContext<DeliveryDbContext>(options =>
     options.UseSqlServer(

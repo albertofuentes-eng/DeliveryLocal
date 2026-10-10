@@ -21,13 +21,22 @@ public class ComerciosController : ControllerBase
 
     // =========================
     // GET: api/Comercios
-    // Público
+    // Público - Soporta filtro opcional por municipio/zona
     // =========================
     [HttpGet]
-    public async Task<IActionResult> GetComercios()
+    public async Task<IActionResult> GetComercios([FromQuery] string? municipio)
     {
-        var comercios = await _context.Comercios
+        var query = _context.Comercios
             .Where(c => c.Activo)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(municipio))
+        {
+            var municipioLimpio = municipio.Trim().ToLower();
+            query = query.Where(c => c.Municipio != null && c.Municipio.ToLower() == municipioLimpio);
+        }
+
+        var comercios = await query
             .OrderBy(c => c.Nombre)
             .ToListAsync();
 
@@ -68,6 +77,7 @@ public class ComerciosController : ControllerBase
                     c.Nombre,
                     c.Descripcion,
                     c.Direccion,
+                    c.Municipio,
                     c.Telefono,
                     c.ImagenUrl,
                     c.Latitud,
@@ -171,6 +181,7 @@ public class ComerciosController : ControllerBase
             comercio.Nombre,
             comercio.Descripcion,
             comercio.Direccion,
+            comercio.Municipio,
             comercio.Telefono,
             comercio.ImagenUrl,
             comercio.Activo,
@@ -291,6 +302,7 @@ public class ComerciosController : ControllerBase
             comercio.Nombre,
             comercio.Descripcion,
             comercio.Direccion,
+            comercio.Municipio,
             comercio.Telefono,
             comercio.ImagenUrl,
             comercio.Activo,
@@ -351,6 +363,11 @@ public class ComerciosController : ControllerBase
 
         comercio.Direccion =
             comercio.Direccion.Trim();
+
+        comercio.Municipio =
+            string.IsNullOrWhiteSpace(comercio.Municipio)
+                ? "Coatepeque"
+                : comercio.Municipio.Trim();
 
         comercio.Descripcion =
             comercio.Descripcion?.Trim();

@@ -22,6 +22,57 @@ namespace DeliveryApi.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("DeliveryApi.Models.CalificacionPedido", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comentario")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("EmisorUsuarioId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PedidoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Puntuacion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ReceptorUsuarioId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmisorUsuarioId");
+
+                    b.HasIndex("ReceptorUsuarioId");
+
+                    b.HasIndex("PedidoId", "Tipo")
+                        .IsUnique();
+
+                    b.ToTable("CalificacionesPedido", t =>
+                        {
+                            t.HasCheckConstraint("CK_CalificacionesPedido_Puntuacion", "[Puntuacion] BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("CK_CalificacionesPedido_Tipo", "[Tipo] IN ('ClienteARepartidor', 'RepartidorACliente')");
+
+                            t.HasCheckConstraint("CK_CalificacionesPedido_UsuariosDistintos", "[EmisorUsuarioId] <> [ReceptorUsuarioId]");
+                        });
+                });
+
             modelBuilder.Entity("DeliveryApi.Models.Categoria", b =>
                 {
                     b.Property<int>("Id")
@@ -86,6 +137,11 @@ namespace DeliveryApi.Migrations
                     b.Property<decimal?>("Longitud")
                         .HasPrecision(10, 7)
                         .HasColumnType("decimal(10,7)");
+
+                    b.Property<string>("Municipio")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -180,6 +236,125 @@ namespace DeliveryApi.Migrations
                     b.ToTable("DispositivosPush");
                 });
 
+            modelBuilder.Entity("DeliveryApi.Models.IncidenciaPedido", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AdministradorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
+                    b.Property<string>("EvidenciaUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("FechaReporte")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaResolucion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("PedidoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RepartidorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Resolucion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Estado");
+
+                    b.HasIndex("PedidoId");
+
+                    b.HasIndex("RepartidorId");
+
+                    b.ToTable("IncidenciasPedido");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.LiquidacionPago", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Beneficiario")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("Comision")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaLiquidacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("MontoBruto")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("MontoNeto")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("Observacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("PedidoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Proveedor")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ReferenciaExterna")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PedidoId");
+
+                    b.HasIndex("PedidoId", "Beneficiario")
+                        .IsUnique();
+
+                    b.ToTable("LiquidacionesPago");
+                });
+
             modelBuilder.Entity("DeliveryApi.Models.Pedido", b =>
                 {
                     b.Property<int>("Id")
@@ -190,6 +365,13 @@ namespace DeliveryApi.Migrations
 
                     b.Property<int>("ComercioId")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("ComisionPasarela")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("ComprobantePagoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("DireccionEntrega")
                         .HasMaxLength(300)
@@ -205,10 +387,33 @@ namespace DeliveryApi.Migrations
                         .HasColumnType("nvarchar(30)")
                         .HasDefaultValue("Pendiente");
 
+                    b.Property<string>("EstadoLiquidacion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
+                    b.Property<string>("EstadoPago")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("FechaAsignacionRepartidor")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaConfirmacionEntrega")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("FechaEntrega")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaLiquidacion")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("FechaProgramada")
@@ -224,9 +429,30 @@ namespace DeliveryApi.Migrations
                     b.Property<decimal?>("LongitudEntrega")
                         .HasColumnType("decimal(10,7)");
 
+                    b.Property<string>("MetodoPago")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Efectivo");
+
+                    b.Property<decimal>("MontoComercio")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("MontoDeliveryLocal")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("ProveedorPago")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("ReferenciaEntrega")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ReferenciaPagoExterno")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<int?>("RepartidorId")
                         .HasColumnType("int");
@@ -251,6 +477,13 @@ namespace DeliveryApi.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("Ahora");
+
+                    b.Property<string>("TokenEntrega")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("TokenUsado")
+                        .HasColumnType("bit");
 
                     b.Property<decimal>("Total")
                         .HasColumnType("decimal(10,2)");
@@ -412,6 +645,71 @@ namespace DeliveryApi.Migrations
                     b.ToTable("SolicitudesRepartidor");
                 });
 
+            modelBuilder.Entity("DeliveryApi.Models.TransaccionPago", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClaveIdempotencia")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
+                    b.Property<DateTime?>("FechaConfirmacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Moneda")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("GTQ");
+
+                    b.Property<decimal>("Monto")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("Observacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("PedidoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Proveedor")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ReferenciaExterna")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaveIdempotencia")
+                        .IsUnique()
+                        .HasFilter("[ClaveIdempotencia] IS NOT NULL");
+
+                    b.HasIndex("PedidoId");
+
+                    b.HasIndex("Proveedor", "ReferenciaExterna")
+                        .IsUnique()
+                        .HasFilter("[Proveedor] IS NOT NULL AND [ReferenciaExterna] IS NOT NULL");
+
+                    b.ToTable("TransaccionesPago");
+                });
+
             modelBuilder.Entity("DeliveryApi.Models.Usuario", b =>
                 {
                     b.Property<int>("Id")
@@ -466,6 +764,33 @@ namespace DeliveryApi.Migrations
                     b.ToTable("Usuarios");
                 });
 
+            modelBuilder.Entity("DeliveryApi.Models.CalificacionPedido", b =>
+                {
+                    b.HasOne("DeliveryApi.Models.Usuario", "EmisorUsuario")
+                        .WithMany()
+                        .HasForeignKey("EmisorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DeliveryApi.Models.Pedido", "Pedido")
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DeliveryApi.Models.Usuario", "ReceptorUsuario")
+                        .WithMany()
+                        .HasForeignKey("ReceptorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EmisorUsuario");
+
+                    b.Navigation("Pedido");
+
+                    b.Navigation("ReceptorUsuario");
+                });
+
             modelBuilder.Entity("DeliveryApi.Models.Categoria", b =>
                 {
                     b.HasOne("DeliveryApi.Models.Comercio", "Comercio")
@@ -505,6 +830,36 @@ namespace DeliveryApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.IncidenciaPedido", b =>
+                {
+                    b.HasOne("DeliveryApi.Models.Pedido", "Pedido")
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DeliveryApi.Models.Repartidor", "Repartidor")
+                        .WithMany()
+                        .HasForeignKey("RepartidorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pedido");
+
+                    b.Navigation("Repartidor");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.LiquidacionPago", b =>
+                {
+                    b.HasOne("DeliveryApi.Models.Pedido", "Pedido")
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pedido");
                 });
 
             modelBuilder.Entity("DeliveryApi.Models.Pedido", b =>
@@ -579,6 +934,17 @@ namespace DeliveryApi.Migrations
                     b.Navigation("RevisadoPorUsuario");
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.TransaccionPago", b =>
+                {
+                    b.HasOne("DeliveryApi.Models.Pedido", "Pedido")
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pedido");
                 });
 
             modelBuilder.Entity("DeliveryApi.Models.Usuario", b =>

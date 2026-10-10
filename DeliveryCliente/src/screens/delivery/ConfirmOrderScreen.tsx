@@ -1,5 +1,5 @@
-import React, { useState } from "react";
 
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { crearPedido } from "../../services/api";
 
+type MetodoPago = "Efectivo" | "Transferencia";
+
 export default function ConfirmOrderScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -35,6 +37,10 @@ export default function ConfirmOrderScreen() {
   const [enviandoPedido, setEnviandoPedido] =
     useState(false);
 
+  // FASE 3: MÉTODO DE PAGO
+  const [metodoPago, setMetodoPago] =
+    useState<MetodoPago>("Efectivo");
+
   const {
     tipoEntrega,
     direccion,
@@ -49,12 +55,9 @@ export default function ConfirmOrderScreen() {
   } = route.params || {};
 
   const envioFinal =
-    tipoEntrega === "Recoger"
-      ? 0
-      : envio;
+    tipoEntrega === "Recoger" ? 0 : envio;
 
-  const totalFinal =
-    subtotal + envioFinal;
+  const totalFinal = subtotal + envioFinal;
 
   function construirFechaProgramada() {
     if (
@@ -74,14 +77,9 @@ export default function ConfirmOrderScreen() {
       );
     }
 
-    const dia =
-      Number(partesFecha[0]);
-
-    const mes =
-      Number(partesFecha[1]);
-
-    const anio =
-      Number(partesFecha[2]);
+    const dia = Number(partesFecha[0]);
+    const mes = Number(partesFecha[1]);
+    const anio = Number(partesFecha[2]);
 
     const partesHora =
       horaProgramada.split(":");
@@ -92,11 +90,8 @@ export default function ConfirmOrderScreen() {
       );
     }
 
-    const hora =
-      Number(partesHora[0]);
-
-    const minuto =
-      Number(partesHora[1]);
+    const hora = Number(partesHora[0]);
+    const minuto = Number(partesHora[1]);
 
     if (
       Number.isNaN(dia) ||
@@ -110,26 +105,28 @@ export default function ConfirmOrderScreen() {
       );
     }
 
-    const fecha =
-      new Date(
-        anio,
-        mes - 1,
-        dia,
-        hora,
-        minuto,
-        0
-      );
+    const fecha = new Date(
+      anio,
+      mes - 1,
+      dia,
+      hora,
+      minuto,
+      0
+    );
 
     return fecha.toISOString();
   }
 
   async function confirmarPedido() {
+    if (enviandoPedido) {
+      return;
+    }
+
     if (carrito.length === 0) {
       Alert.alert(
         "Carrito vacío",
         "No hay productos para confirmar."
       );
-
       return;
     }
 
@@ -138,12 +135,10 @@ export default function ConfirmOrderScreen() {
         "Sesión requerida",
         "Debes iniciar sesión nuevamente."
       );
-
       return;
     }
 
-    const comercioId =
-      carrito[0].comercioId;
+    const comercioId = carrito[0].comercioId;
 
     const productosDeOtroComercio =
       carrito.some(
@@ -156,83 +151,82 @@ export default function ConfirmOrderScreen() {
         "Pedido inválido",
         "Todos los productos deben pertenecer al mismo comercio."
       );
-
       return;
     }
 
     try {
       setEnviandoPedido(true);
 
-      const productos =
-        carrito.map((item) => ({
-          productoId: item.id,
-          cantidad: item.cantidad,
-        }));
+      const productos = carrito.map((item) => ({
+        productoId: item.id,
+        cantidad: item.cantidad,
+      }));
 
       const fechaProgramadaApi =
         construirFechaProgramada();
 
-      const pedido =
-        await crearPedido(
-          token,
-          {
-            comercioId,
+      const pedido = await crearPedido(token, {
+        comercioId,
 
-            tipoEntrega,
+        tipoEntrega,
 
-            direccionEntrega:
-              tipoEntrega === "Domicilio"
-                ? direccion
-                : null,
+        direccionEntrega:
+          tipoEntrega === "Domicilio"
+            ? direccion
+            : null,
 
-            latitudEntrega:
-              tipoEntrega === "Domicilio"
-                ? latitude
-                : null,
+        latitudEntrega:
+          tipoEntrega === "Domicilio"
+            ? latitude
+            : null,
 
-            longitudEntrega:
-              tipoEntrega === "Domicilio"
-                ? longitude
-                : null,
+        longitudEntrega:
+          tipoEntrega === "Domicilio"
+            ? longitude
+            : null,
 
-            telefonoEntrega:
-              tipoEntrega === "Domicilio"
-                ? telefono
-                : null,
+        telefonoEntrega:
+          tipoEntrega === "Domicilio"
+            ? telefono
+            : null,
 
-            referenciaEntrega:
-              tipoEntrega === "Domicilio"
-                ? referencia
-                : null,
+        referenciaEntrega:
+          tipoEntrega === "Domicilio"
+            ? referencia
+            : null,
 
-            indicacionesEntrega:
-              tipoEntrega === "Domicilio"
-                ? indicaciones || null
-                : null,
+        indicacionesEntrega:
+          tipoEntrega === "Domicilio"
+            ? indicaciones || null
+            : null,
 
-            tipoTiempo,
+        tipoTiempo,
 
-            fechaProgramada:
-              fechaProgramadaApi,
+        fechaProgramada:
+          fechaProgramadaApi,
 
-            productos,
-          }
-        );
+        // FASE 3: ENVIAR MÉTODO DE PAGO
+        metodoPago,
 
-            Alert.alert(
+        productos,
+      });
+
+      const mensajePago =
+        metodoPago === "Transferencia"
+          ? "\n\nMétodo de pago: Transferencia bancaria.\nEstado del pago: Pendiente de verificación."
+          : "\n\nMétodo de pago: Efectivo.\nEstado del pago: Pendiente.";
+
+      Alert.alert(
         "Pedido realizado ✅",
         `Tu pedido #${pedido.id} fue registrado correctamente.\n\nTotal: Q ${Number(
           pedido.total
-        ).toFixed(2)}`,
+        ).toFixed(2)}${mensajePago}`,
         [
           {
             text: "VER MIS PEDIDOS",
             onPress: () => {
               vaciarCarrito();
-
-              navigation.navigate(
-                "MisPedidos"
-              );
+              navigation.navigate("MisPedidos");
             },
           },
         ],
@@ -240,8 +234,6 @@ export default function ConfirmOrderScreen() {
           cancelable: false,
         }
       );
-
-
     } catch (error: any) {
       Alert.alert(
         "Error",
@@ -268,6 +260,7 @@ export default function ConfirmOrderScreen() {
         Revisa toda la información antes de confirmar.
       </Text>
 
+      {/* PRODUCTOS */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
           Productos
@@ -292,14 +285,14 @@ export default function ConfirmOrderScreen() {
             <Text style={styles.productTotal}>
               Q{" "}
               {(
-                item.precio *
-                item.cantidad
+                item.precio * item.cantidad
               ).toFixed(2)}
             </Text>
           </View>
         ))}
       </View>
 
+      {/* ENTREGA */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
           🚚 Entrega
@@ -363,11 +356,13 @@ export default function ConfirmOrderScreen() {
 
         {tipoEntrega === "Recoger" && (
           <Text style={styles.pickupText}>
-            🏪 Recogerás el pedido directamente en el comercio.
+            🏪 Recogerás el pedido directamente
+            en el comercio.
           </Text>
         )}
       </View>
 
+      {/* HORARIO */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
           🕒 Cuándo
@@ -410,6 +405,107 @@ export default function ConfirmOrderScreen() {
         )}
       </View>
 
+      {/* FASE 3: MÉTODO DE PAGO */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          💳 Método de pago
+        </Text>
+
+        <Text style={styles.paymentSubtitle}>
+          Selecciona cómo deseas pagar.
+        </Text>
+
+        <TouchableOpacity
+          style={[
+            styles.paymentOption,
+            metodoPago === "Efectivo" &&
+              styles.paymentOptionSelected,
+          ]}
+          onPress={() =>
+            setMetodoPago("Efectivo")
+          }
+          disabled={enviandoPedido}
+          accessibilityRole="radio"
+          accessibilityState={{
+            selected: metodoPago === "Efectivo",
+          }}
+        >
+          <View style={styles.radioOuter}>
+            {metodoPago === "Efectivo" && (
+              <View style={styles.radioInner} />
+            )}
+          </View>
+
+          <View style={styles.paymentContent}>
+            <Text style={styles.paymentTitle}>
+              💵 Efectivo
+            </Text>
+
+            <Text style={styles.paymentDescription}>
+              Paga al recibir o recoger
+              tu pedido.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.paymentOption,
+            metodoPago === "Transferencia" &&
+              styles.paymentOptionSelected,
+          ]}
+          onPress={() =>
+            setMetodoPago("Transferencia")
+          }
+          disabled={enviandoPedido}
+          accessibilityRole="radio"
+          accessibilityState={{
+            selected:
+              metodoPago === "Transferencia",
+          }}
+        >
+          <View style={styles.radioOuter}>
+            {metodoPago === "Transferencia" && (
+              <View style={styles.radioInner} />
+            )}
+          </View>
+
+          <View style={styles.paymentContent}>
+            <Text style={styles.paymentTitle}>
+              🏦 Transferencia bancaria
+            </Text>
+
+            <Text style={styles.paymentDescription}>
+              Registra el pedido con pago
+              pendiente de verificación.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {metodoPago === "Transferencia" && (
+          <View style={styles.paymentNotice}>
+            <Text style={styles.paymentNoticeText}>
+              ℹ️ El pedido se registrará
+              como pendiente de pago.
+              Próximamente integraremos
+              los datos bancarios y la carga
+              del comprobante.
+            </Text>
+          </View>
+        )}
+
+        {metodoPago === "Efectivo" && (
+          <View style={styles.paymentNotice}>
+            <Text style={styles.paymentNoticeText}>
+              ℹ️ El pago en efectivo quedará
+              pendiente hasta que se registre
+              su cobro.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* TOTALES */}
       <View style={styles.totalCard}>
         <View style={styles.row}>
           <Text style={styles.totalLabelSmall}>
@@ -444,6 +540,7 @@ export default function ConfirmOrderScreen() {
         </View>
       </View>
 
+      {/* CONFIRMAR PEDIDO */}
       <TouchableOpacity
         style={[
           styles.confirmButton,
@@ -577,6 +674,79 @@ const styles = StyleSheet.create({
   pickupText: {
     color: "#555",
     lineHeight: 21,
+  },
+
+  // FASE 3: ESTILOS DE PAGO
+
+  paymentSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 14,
+  },
+
+  paymentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
+    backgroundColor: "#FFFFFF",
+  },
+
+  paymentOptionSelected: {
+    borderColor: "#E53935",
+    borderWidth: 2,
+    backgroundColor: "#FFF5F5",
+  },
+
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#E53935",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#E53935",
+  },
+
+  paymentContent: {
+    flex: 1,
+  },
+
+  paymentTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#222222",
+  },
+
+  paymentDescription: {
+    fontSize: 13,
+    color: "#666666",
+    marginTop: 5,
+    lineHeight: 19,
+  },
+
+  paymentNotice: {
+    backgroundColor: "#F2F5FA",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 3,
+  },
+
+  paymentNoticeText: {
+    color: "#455A64",
+    fontSize: 13,
+    lineHeight: 20,
   },
 
   totalCard: {

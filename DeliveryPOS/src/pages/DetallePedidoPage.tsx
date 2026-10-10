@@ -1,92 +1,81 @@
-import {
-  useEffect,
-  useState,
-} from "react";
 
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import {
   actualizarEstadoPedido,
   obtenerDetallePedidoComercio,
+  confirmarRecogidaPedido,
   type DetallePedidoComercio,
 } from "../services/api";
 
 export default function DetallePedidoPage() {
   const navigate = useNavigate();
-
   const { id } = useParams();
 
   const [pedido, setPedido] =
-    useState<DetallePedidoComercio | null>(
-      null
-    );
+    useState<DetallePedidoComercio | null>(null);
 
-  const [cargando, setCargando] =
-    useState(true);
+  const [cargando, setCargando] = useState(true);
+  const [actualizando, setActualizando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
 
-  const [actualizando, setActualizando] =
+  // FASE 3: verificación de entrega en comercio
+  const [codigoEntrega, setCodigoEntrega] = useState("");
+  const [mostrarFormularioCodigo, setMostrarFormularioCodigo] =
     useState(false);
 
-  const [mensaje, setMensaje] =
-    useState("");
-
   useEffect(() => {
-    cargarPedido();
+    void cargarPedido();
   }, [id]);
 
   async function cargarPedido() {
-    const token =
-      localStorage.getItem(
-        "deliverypos_token"
-      );
+    const token = localStorage.getItem("deliverypos_token");
 
     if (!token) {
       navigate("/");
       return;
     }
 
-    if (!id) {
-      setMensaje(
-        "No se indicó el pedido."
-      );
+    if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+      setMensaje("No se indicó un pedido válido.");
       setCargando(false);
       return;
     }
 
     try {
       setCargando(true);
+      setMensaje("");
 
-      const data =
-        await obtenerDetallePedidoComercio(
-          token,
-          Number(id)
-        );
+      const data = await obtenerDetallePedidoComercio(
+        token,
+        Number(id)
+      );
 
       setPedido(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMensaje(
-        error.message ||
-          "No se pudo cargar el pedido."
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el pedido."
       );
     } finally {
       setCargando(false);
     }
   }
 
-  async function cambiarEstado(
-    nuevoEstado: string
-  ) {
-    if (!pedido) {
+  async function cambiarEstado(nuevoEstado: string) {
+    if (!pedido || actualizando) return;
+
+    // No permitir que la pantalla omita la validación.
+    if (nuevoEstado === "Entregado") {
+      setMensaje(
+        "Para entregar el pedido debes verificar el código del cliente."
+      );
       return;
     }
 
-    const token =
-      localStorage.getItem(
-        "deliverypos_token"
-      );
+    const token = localStorage.getItem("deliverypos_token");
 
     if (!token) {
       navigate("/");
@@ -108,13 +97,76 @@ export default function DetallePedidoPage() {
         estado: nuevoEstado,
       });
 
+      setMensaje(`Estado actualizado a "${nuevoEstado}".`);
+    } catch (error: unknown) {
       setMensaje(
-        `Estado actualizado a "${nuevoEstado}".`
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el estado."
       );
-    } catch (error: any) {
+    } finally {
+      setActualizando(false);
+    }
+  }
+
+  async function verificarEntrega() {
+    if (!pedido || actualizando) return;
+
+    if (
+      pedido.tipoEntrega !== "Recoger" ||
+      pedido.estado !== "Listo para recoger"
+    ) {
       setMensaje(
-        error.message ||
-          "No se pudo actualizar el estado."
+        "Este pedido no está disponible para confirmar su recogida."
+      );
+      return;
+    }
+
+    const codigo = codigoEntrega.trim().toUpperCase();
+
+    if (!codigo) {
+      setMensaje("Ingresá el código de entrega del cliente.");
+      return;
+    }
+
+    if (codigo.length > 35) {
+      setMensaje("El código de entrega no es válido.");
+      return;
+    }
+
+    const token = localStorage.getItem("deliverypos_token");
+
+    if (!token) {
+      navigate("/");
+      return;
+    }
+
+    try {
+      setActualizando(true);
+      setMensaje("");
+
+      await confirmarRecogidaPedido(
+        token,
+        pedido.id,
+        codigo
+      );
+
+      setPedido({
+        ...pedido,
+        estado: "Entregado",
+      });
+
+      setCodigoEntrega("");
+      setMostrarFormularioCodigo(false);
+
+      setMensaje(
+        "Pedido entregado correctamente. El código de seguridad fue utilizado."
+      );
+    } catch (error: unknown) {
+      setMensaje(
+        error instanceof Error
+          ? error.message
+          : "No se pudo verificar el código."
       );
     } finally {
       setActualizando(false);
@@ -135,8 +187,7 @@ export default function DetallePedidoPage() {
     return (
       <div className="detail-page">
         <div className="empty-box">
-          {mensaje ||
-            "Pedido no encontrado."}
+          {mensaje || "Pedido no encontrado."}
         </div>
       </div>
     );
@@ -149,20 +200,13 @@ export default function DetallePedidoPage() {
           <div>
             <button
               className="back-link"
-              onClick={() =>
-                navigate("/dashboard")
-              }
+              onClick={() => navigate("/dashboard")}
             >
               ← Volver a pedidos
             </button>
 
-            <h1>
-              Pedido #{pedido.id}
-            </h1>
-
-            <p>
-              {pedido.comercio}
-            </p>
+            <h1>Pedido #{pedido.id}</h1>
+            <p>{pedido.comercio}</p>
           </div>
 
           <span className="detail-status">
@@ -171,26 +215,22 @@ export default function DetallePedidoPage() {
         </div>
 
         {mensaje && (
-          <div className="detail-message">
+          <div className="detail-message" role="status">
             {mensaje}
           </div>
         )}
 
         <div className="detail-grid">
           <section className="detail-card">
-            <h2>
-              Cliente
-            </h2>
+            <h2>Cliente</h2>
 
             <p>
-              <strong>Nombre:</strong>{" "}
-              {pedido.cliente}
+              <strong>Nombre:</strong> {pedido.cliente}
             </p>
 
             <p>
               <strong>Correo:</strong>{" "}
-              {pedido.correoCliente ||
-                "No disponible"}
+              {pedido.correoCliente || "No disponible"}
             </p>
 
             <p>
@@ -202,54 +242,39 @@ export default function DetallePedidoPage() {
           </section>
 
           <section className="detail-card">
-            <h2>
-              Entrega
-            </h2>
+            <h2>Entrega</h2>
 
             <p>
-              <strong>Tipo:</strong>{" "}
-              {pedido.tipoEntrega}
+              <strong>Tipo:</strong> {pedido.tipoEntrega}
             </p>
 
-            {pedido.tipoEntrega ===
-            "Domicilio" ? (
+            {pedido.tipoEntrega === "Domicilio" ? (
               <>
                 <p>
-                  <strong>
-                    Dirección:
-                  </strong>{" "}
-                  {pedido.direccionEntrega ||
-                    "No disponible"}
+                  <strong>Dirección:</strong>{" "}
+                  {pedido.direccionEntrega || "No disponible"}
                 </p>
 
                 <p>
-                  <strong>
-                    Referencia:
-                  </strong>{" "}
-                  {pedido.referenciaEntrega ||
-                    "No disponible"}
+                  <strong>Referencia:</strong>{" "}
+                  {pedido.referenciaEntrega || "No disponible"}
                 </p>
 
                 <p>
-                  <strong>
-                    Indicaciones:
-                  </strong>{" "}
+                  <strong>Indicaciones:</strong>{" "}
                   {pedido.indicacionesEntrega ||
                     "Sin indicaciones"}
                 </p>
               </>
             ) : (
               <p>
-                El cliente recogerá el pedido en
-                el comercio.
+                El cliente recogerá el pedido en el comercio.
               </p>
             )}
           </section>
 
           <section className="detail-card">
-            <h2>
-              Horario
-            </h2>
+            <h2>Horario</h2>
 
             <p>
               <strong>Modalidad:</strong>{" "}
@@ -260,9 +285,7 @@ export default function DetallePedidoPage() {
 
             {pedido.fechaProgramada && (
               <p>
-                <strong>
-                  Fecha programada:
-                </strong>{" "}
+                <strong>Fecha programada:</strong>{" "}
                 {new Date(
                   pedido.fechaProgramada
                 ).toLocaleString()}
@@ -270,105 +293,68 @@ export default function DetallePedidoPage() {
             )}
 
             <p>
-              <strong>
-                Pedido realizado:
-              </strong>{" "}
-              {new Date(
-                pedido.fecha
-              ).toLocaleString()}
+              <strong>Pedido realizado:</strong>{" "}
+              {new Date(pedido.fecha).toLocaleString()}
             </p>
           </section>
         </div>
 
         <section className="detail-card products-section">
-          <h2>
-            Productos
-          </h2>
+          <h2>Productos</h2>
 
-          {pedido.detalles.map(
-            (item) => (
-              <div
-                className="detail-product"
-                key={item.productoId}
-              >
-                <div>
-                  <strong>
-                    {item.producto}
-                  </strong>
+          {pedido.detalles.map((item, index) => (
+            <div
+              className="detail-product"
+              key={`${item.productoId}-${index}`}
+            >
+              <div>
+                <strong>{item.producto}</strong>
 
-                  <p>
-                    {item.cantidad} x Q{" "}
-                    {Number(
-                      item.precioUnitario
-                    ).toFixed(2)}
-                  </p>
-                </div>
-
-                <strong>
-                  Q{" "}
-                  {Number(
-                    item.subtotal
-                  ).toFixed(2)}
-                </strong>
+                <p>
+                  {item.cantidad} x Q{" "}
+                  {Number(item.precioUnitario).toFixed(2)}
+                </p>
               </div>
-            )
-          )}
+
+              <strong>
+                Q {Number(item.subtotal).toFixed(2)}
+              </strong>
+            </div>
+          ))}
         </section>
 
         <section className="detail-card totals-section">
           <div>
-            <span>
-              Subtotal
-            </span>
-
+            <span>Subtotal</span>
             <strong>
-              Q{" "}
-              {Number(
-                pedido.subtotal
-              ).toFixed(2)}
+              Q {Number(pedido.subtotal).toFixed(2)}
             </strong>
           </div>
 
           <div>
-            <span>
-              Envío
-            </span>
-
+            <span>Envío</span>
             <strong>
-              Q{" "}
-              {Number(
-                pedido.envio
-              ).toFixed(2)}
+              Q {Number(pedido.envio).toFixed(2)}
             </strong>
           </div>
 
           <div className="grand-total">
-            <span>
-              Total
-            </span>
-
+            <span>Total</span>
             <strong>
-              Q{" "}
-              {Number(
-                pedido.total
-              ).toFixed(2)}
+              Q {Number(pedido.total).toFixed(2)}
             </strong>
           </div>
         </section>
-          
-          <section className="status-actions">
-          <h2>
-            Cambiar estado
-          </h2>
+
+        <section className="status-actions">
+          <h2>Cambiar estado</h2>
 
           <div className="status-buttons">
             {pedido.estado === "Pendiente" && (
               <>
                 <button
                   disabled={actualizando}
-                  onClick={() =>
-                    cambiarEstado("Confirmado")
-                  }
+                  onClick={() => cambiarEstado("Confirmado")}
                 >
                   CONFIRMAR
                 </button>
@@ -376,9 +362,7 @@ export default function DetallePedidoPage() {
                 <button
                   className="reject-button"
                   disabled={actualizando}
-                  onClick={() =>
-                    cambiarEstado("Rechazado")
-                  }
+                  onClick={() => cambiarEstado("Rechazado")}
                 >
                   RECHAZAR
                 </button>
@@ -389,9 +373,7 @@ export default function DetallePedidoPage() {
               <>
                 <button
                   disabled={actualizando}
-                  onClick={() =>
-                    cambiarEstado("Preparando")
-                  }
+                  onClick={() => cambiarEstado("Preparando")}
                 >
                   PREPARANDO
                 </button>
@@ -399,9 +381,7 @@ export default function DetallePedidoPage() {
                 <button
                   className="reject-button"
                   disabled={actualizando}
-                  onClick={() =>
-                    cambiarEstado("Rechazado")
-                  }
+                  onClick={() => cambiarEstado("Rechazado")}
                 >
                   RECHAZAR
                 </button>
@@ -412,37 +392,126 @@ export default function DetallePedidoPage() {
               <button
                 disabled={actualizando}
                 onClick={() =>
-                  cambiarEstado(
-                    "Listo para recoger"
-                  )
+                  cambiarEstado("Listo para recoger")
                 }
               >
                 LISTO PARA RECOGER
               </button>
             )}
 
-            {pedido.estado ===
-              "Listo para recoger" &&
-              pedido.tipoEntrega ===
-                "Recoger" && (
-                <button
-                  disabled={actualizando}
-                  onClick={() =>
-                    cambiarEstado("Entregado")
-                  }
+            {pedido.estado === "Listo para recoger" &&
+              pedido.tipoEntrega === "Recoger" && (
+                <div
+                  className="detail-card"
+                  style={{
+                    width: "100%",
+                    padding: 20,
+                    marginTop: 12,
+                  }}
                 >
-                  ENTREGADO
-                </button>
+                  <h3>Confirmar recogida con código</h3>
+
+                  <p>
+                    Solicitá al cliente el código de seguridad
+                    que aparece en su aplicación.
+                  </p>
+
+                  {!mostrarFormularioCodigo ? (
+                    <button
+                      disabled={actualizando}
+                      onClick={() => {
+                        setMensaje("");
+                        setMostrarFormularioCodigo(true);
+                      }}
+                    >
+                      VERIFICAR CÓDIGO DE ENTREGA
+                    </button>
+                  ) : (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void verificarEntrega();
+                      }}
+                    >
+                      <label
+                        htmlFor="codigo-entrega"
+                        style={{
+                          display: "block",
+                          marginBottom: 8,
+                        }}
+                      >
+                        Código del cliente
+                      </label>
+
+                      <input
+                        id="codigo-entrega"
+                        type="text"
+                        value={codigoEntrega}
+                        onChange={(event) =>
+                          setCodigoEntrega(
+                            event.target.value.toUpperCase()
+                          )
+                        }
+                        placeholder="DL-..."
+                        maxLength={35}
+                        autoComplete="off"
+                        spellCheck={false}
+                        disabled={actualizando}
+                        autoFocus
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          maxWidth: 420,
+                          padding: 12,
+                          marginBottom: 14,
+                          border: "1px solid #aaa",
+                          borderRadius: 8,
+                          boxSizing: "border-box",
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          disabled={
+                            actualizando ||
+                            !codigoEntrega.trim()
+                          }
+                        >
+                          {actualizando
+                            ? "VERIFICANDO..."
+                            : "CONFIRMAR ENTREGA"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="reject-button"
+                          disabled={actualizando}
+                          onClick={() => {
+                            setCodigoEntrega("");
+                            setMostrarFormularioCodigo(false);
+                            setMensaje("");
+                          }}
+                        >
+                          CANCELAR
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               )}
 
-            {pedido.estado ===
-              "Listo para recoger" &&
-              pedido.tipoEntrega ===
-                "Domicilio" && (
+            {pedido.estado === "Listo para recoger" &&
+              pedido.tipoEntrega === "Domicilio" && (
                 <div className="status-info">
-                  Este pedido ya está listo.
-                  El siguiente paso será asignar
-                  un repartidor.
+                  Este pedido ya está listo. El siguiente
+                  paso será asignar un repartidor.
                 </div>
               )}
 
@@ -452,16 +521,27 @@ export default function DetallePedidoPage() {
               </div>
             )}
 
+            {pedido.estado === "Cancelado" && (
+              <div className="status-info">
+                Este pedido fue cancelado.
+              </div>
+            )}
+
             {pedido.estado === "Entregado" && (
               <div className="status-info">
                 Pedido entregado correctamente.
               </div>
             )}
 
-            {pedido.estado ===
-              "Asignado a repartidor" && (
+            {pedido.estado === "Asignado a repartidor" && (
               <div className="status-info">
                 Pedido asignado a un repartidor.
+              </div>
+            )}
+
+            {pedido.estado === "Recogido" && (
+              <div className="status-info">
+                El repartidor recogió el pedido.
               </div>
             )}
 
@@ -472,7 +552,6 @@ export default function DetallePedidoPage() {
             )}
           </div>
         </section>
-
       </div>
     </div>
   );

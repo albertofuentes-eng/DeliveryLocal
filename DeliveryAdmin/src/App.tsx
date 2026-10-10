@@ -26,11 +26,20 @@ import ComerciosPage
 import ClientesPage
   from "./pages/ClientesPage";
 
-import PedidosPage 
+import PedidosPage
   from "./pages/PedidosPage";
 
-import MetricasPage 
+import IncidenciasPage
+  from "./pages/IncidenciasPage";
+
+import MetricasPage
   from "./pages/MetricasPage";
+
+import CalificacionesPage
+  from "./pages/CalificacionesPage";
+
+import PagosPage
+  from "./pages/PagosPage";
 
 function RutaAdministrador({
   children,
@@ -174,6 +183,33 @@ function App() {
         element={
           <RutaAdministrador>
             <PedidosPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/incidencias"
+        element={
+          <RutaAdministrador>
+            <IncidenciasPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/calificaciones"
+        element={
+          <RutaAdministrador>
+            <CalificacionesPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/pagos"
+        element={
+          <RutaAdministrador>
+            <PagosPage />
           </RutaAdministrador>
         }
       />

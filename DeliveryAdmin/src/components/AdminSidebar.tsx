@@ -51,6 +51,28 @@ const opciones: MenuItem[] = [
     ruta: "/pedidos",
     disponible: true,
   },
+
+  {
+    texto: "Pagos",
+    icono: "💳",
+    ruta: "/pagos",
+    disponible: true,
+  },
+
+  {
+    texto: "Calificaciones",
+    icono: "⭐",
+    ruta: "/calificaciones",
+    disponible: true,
+  },
+
+  {
+    texto: "Incidencias",
+    icono: "⚠️",
+    ruta: "/incidencias",
+    disponible: true,
+  },
+
   {
     texto: "Métricas",
     icono: "📊",

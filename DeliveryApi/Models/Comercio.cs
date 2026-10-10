@@ -17,6 +17,10 @@ public class Comercio
     [MaxLength(250)]
     public string Direccion { get; set; } = string.Empty;
 
+    // Campo de Zona/Municipio para delimitación geográfica
+    [MaxLength(100)]
+    public string Municipio { get; set; } = "Coatepeque";
+
     [MaxLength(20)]
     public string? Telefono { get; set; }
 

@@ -1,3 +1,7 @@
+
+using System;
+using System.Collections.Generic;
+
 namespace DeliveryApi.DTOs;
 
 public class CrearPedidoDto
@@ -21,6 +25,16 @@ public class CrearPedidoDto
     public string TipoTiempo { get; set; } = "Ahora";
 
     public DateTime? FechaProgramada { get; set; }
+
+    // ==========================================
+    // FASE 3: MÉTODO DE PAGO
+    // ==========================================
+
+    public string MetodoPago { get; set; } = "Efectivo";
+
+    // ==========================================
+    // PRODUCTOS DEL PEDIDO
+    // ==========================================
 
     public List<CrearDetallePedidoDto> Productos { get; set; }
         = new();

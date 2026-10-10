@@ -839,3 +839,35 @@ export async function actualizarMiComercio(
 
   return data;
 }
+
+
+export async function confirmarRecogidaPedido(
+  token: string,
+  pedidoId: number,
+  codigoEntrega: string
+): Promise<void> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Pedidos/${pedidoId}/confirmar-recogida`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tokenEntrega: codigoEntrega.trim().toUpperCase(),
+      }),
+    }
+  );
+
+  if (!respuesta.ok) {
+    const error = await respuesta
+      .json()
+      .catch(() => null);
+
+    throw new Error(
+      error?.mensaje ||
+        `No se pudo confirmar la entrega (${respuesta.status}).`
+    );
+  }
+}

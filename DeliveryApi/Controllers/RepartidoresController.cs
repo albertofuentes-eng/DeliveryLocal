@@ -48,7 +48,7 @@ public class RepartidoresController : ControllerBase
         return usuarioId;
     }
 
-    
+
     [HttpPost("solicitud")]
     public async Task<IActionResult> CrearSolicitud(
         CrearSolicitudRepartidorDto solicitud
@@ -717,7 +717,8 @@ public class RepartidoresController : ControllerBase
                     $"""
                     UPDATE Pedidos
                     SET RepartidorId = {repartidor.Id},
-                        Estado = {"Asignado a repartidor"}
+                        Estado = {"Asignado a repartidor"},
+                        FechaAsignacionRepartidor = {DateTime.UtcNow}
                     WHERE Id = {pedidoId}
                       AND RepartidorId IS NULL
                       AND Estado = {"Listo para recoger"}
@@ -1332,114 +1333,182 @@ public class RepartidoresController : ControllerBase
     // PUT:
     // api/Repartidores/pedidos/5/entregado
     // =========================
+
+    // ==========================================
+    // FASE 3: ENTREGA CON TOKEN DEL CLIENTE
+    // PUT: api/Repartidores/pedidos/5/entregado
+    // ==========================================
+
     [HttpPut("pedidos/{id:int}/entregado")]
     public async Task<IActionResult> MarcarEntregado(
-        int id
+        int id,
+        [FromBody] ConfirmarEntregaRepartidorDto dto
     )
     {
-        var usuarioId =
-            ObtenerUsuarioId();
+        var usuarioId = ObtenerUsuarioId();
 
         if (usuarioId == null)
         {
             return Unauthorized();
         }
 
-        var repartidor =
-            await _context.Repartidores
-                .FirstOrDefaultAsync(r =>
-                    r.UsuarioId ==
-                        usuarioId.Value &&
-                    r.Activo
-                );
+        if (dto == null ||
+            string.IsNullOrWhiteSpace(dto.TokenEntrega))
+        {
+            return BadRequest(new
+            {
+                mensaje = "Debes ingresar el código de entrega del cliente."
+            });
+        }
+
+        var codigo = dto.TokenEntrega.Trim().ToUpperInvariant();
+
+        if (codigo.Length > 35)
+        {
+            return BadRequest(new
+            {
+                mensaje = "El código de entrega no es válido."
+            });
+        }
+
+        var repartidor = await _context.Repartidores
+            .FirstOrDefaultAsync(r =>
+                r.UsuarioId == usuarioId.Value &&
+                r.Activo
+            );
 
         if (repartidor == null)
         {
             return NotFound(new
             {
-                mensaje =
-                    "Perfil de repartidor no encontrado."
+                mensaje = "Perfil de repartidor no encontrado."
             });
         }
 
-        var pedido =
-            await _context.Pedidos
-                .FirstOrDefaultAsync(p =>
-                    p.Id == id &&
-                    p.RepartidorId ==
-                        repartidor.Id
-                );
+        // Primero comprobamos que el pedido pertenezca
+        // al repartidor autenticado.
+        var pedido = await _context.Pedidos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p =>
+                p.Id == id &&
+                p.RepartidorId == repartidor.Id
+            );
 
         if (pedido == null)
         {
             return NotFound(new
             {
-                mensaje =
-                    "Pedido no encontrado."
+                mensaje = "Pedido no encontrado."
             });
         }
 
-        if (
-            pedido.Estado !=
-            "En camino"
-        )
+        if (pedido.TipoEntrega != "Domicilio")
         {
             return BadRequest(new
             {
-                mensaje =
-                    $"No se puede entregar desde el estado '{pedido.Estado}'."
+                mensaje = "Este pedido no corresponde a una entrega a domicilio."
             });
         }
 
-        pedido.Estado =
-            "Entregado";
+        if (pedido.Estado != "En camino")
+        {
+            return BadRequest(new
+            {
+                mensaje = $"No se puede entregar desde el estado '{pedido.Estado}'."
+            });
+        }
 
-        pedido.FechaEntrega =
-            DateTime.UtcNow;
+        if (pedido.TokenUsado)
+        {
+            return BadRequest(new
+            {
+                mensaje = "El código de este pedido ya fue utilizado."
+            });
+        }
 
-        // Al terminar vuelve a quedar
-        // disponible para otro pedido.
-        repartidor.Disponible =
-            true;
+        if (string.IsNullOrWhiteSpace(pedido.TokenEntrega))
+        {
+            return BadRequest(new
+            {
+                mensaje = "Este pedido no tiene un código de entrega válido."
+            });
+        }
+
+        // La comparación y el consumo se harán en
+        // una única actualización condicional.
+        // Así, dos solicitudes simultáneas no pueden
+        // utilizar el mismo código dos veces.
+
+        var ahora = DateTime.UtcNow;
+
+        await using var transaccion =
+            await _context.Database.BeginTransactionAsync();
+
+        var filasActualizadas = await _context.Pedidos
+            .Where(p =>
+                p.Id == id &&
+                p.RepartidorId == repartidor.Id &&
+                p.TipoEntrega == "Domicilio" &&
+                p.Estado == "En camino" &&
+                !p.TokenUsado &&
+                p.TokenEntrega == codigo
+            )
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(p => p.Estado, "Entregado")
+                .SetProperty(p => p.TokenUsado, true)
+                .SetProperty(p => p.FechaEntrega, ahora)
+                .SetProperty(
+                    p => p.FechaConfirmacionEntrega,
+                    ahora
+                )
+            );
+
+        if (filasActualizadas != 1)
+        {
+            await transaccion.RollbackAsync();
+
+            return BadRequest(new
+            {
+                mensaje = "Código incorrecto, utilizado o pedido no disponible para entrega."
+            });
+        }
+
+        // Después de confirmar correctamente,
+        // el repartidor vuelve a estar disponible.
+        repartidor.Disponible = true;
 
         await _context.SaveChangesAsync();
 
-        // =========================
+        await transaccion.CommitAsync();
+
+        // ==========================================
         // NOTIFICAR AL CLIENTE
-        // PEDIDO ENTREGADO
-        // =========================
+        // ==========================================
+
         try
         {
-            var tokensCliente =
-                await _context.DispositivosPush
-                    .Where(d =>
-                        d.UsuarioId ==
-                            pedido.UsuarioId &&
-                        d.Aplicacion ==
-                            "Cliente" &&
-                        d.Activo
-                    )
-                    .Select(d =>
-                        d.ExpoPushToken
-                    )
-                    .ToListAsync();
+            var tokensCliente = await _context.DispositivosPush
+                .Where(d =>
+                    d.UsuarioId == pedido.UsuarioId &&
+                    d.Aplicacion == "Cliente" &&
+                    d.Activo
+                )
+                .Select(d => d.ExpoPushToken)
+                .ToListAsync();
 
-            foreach (
-                var tokenPush in tokensCliente
-            )
+            foreach (var tokenPush in tokensCliente)
             {
-                await _expoPushService
-                    .EnviarNotificacionAsync(
-                        tokenPush,
-                        "Pedido entregado",
-                        $"Tu pedido #{pedido.Id} fue entregado correctamente.",
-                        new
-                        {
-                            tipo = "Pedido",
-                            pedidoId = pedido.Id,
-                            estado = pedido.Estado
-                        }
-                    );
+                await _expoPushService.EnviarNotificacionAsync(
+                    tokenPush,
+                    "Pedido entregado",
+                    $"Tu pedido #{pedido.Id} fue entregado correctamente.",
+                    new
+                    {
+                        tipo = "Pedido",
+                        pedidoId = pedido.Id,
+                        estado = "Entregado"
+                    }
+                );
             }
         }
         catch (Exception ex)
@@ -1452,13 +1521,13 @@ public class RepartidoresController : ControllerBase
         return Ok(new
         {
             pedido.Id,
-            pedido.Estado,
+            Estado = "Entregado",
+            TokenUsado = true,
             repartidor.Disponible,
-
-            mensaje =
-                "Pedido entregado correctamente."
+            mensaje = "Pedido entregado correctamente mediante el código del cliente."
         });
     }
+
 
     [HttpGet("historial")]
     public async Task<IActionResult> Historial()
