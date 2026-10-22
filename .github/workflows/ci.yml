@@ -1,0 +1,58 @@
+name: DeliveryLocal CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compilar-api:
+    name: Compilar DeliveryApi
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar dependencias
+        run: dotnet restore DeliveryApi/DeliveryApi.csproj
+
+      - name: Compilar API
+        run: dotnet build DeliveryApi/DeliveryApi.csproj --configuration Release --no-restore
+
+  compilar-admin:
+    name: Compilar DeliveryAdmin
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: DeliveryAdmin
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: DeliveryAdmin/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar DeliveryAdmin
+        run: npm run build
