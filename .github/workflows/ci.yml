@@ -56,3 +56,79 @@ jobs:
 
       - name: Compilar DeliveryAdmin
         run: npm run build
+
+
+  compilar-pos:
+    name: Compilar DeliveryPOS
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: DeliveryPOS
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: DeliveryPOS/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar DeliveryPOS
+        run: npm run build
+
+  verificar-cliente:
+    name: Verificar DeliveryCliente
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: DeliveryCliente
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: DeliveryCliente/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar TypeScript
+        run: npx tsc --noEmit
+
+  verificar-repartidor:
+    name: Verificar DeliveryRepartidor
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: DeliveryRepartidor
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: DeliveryRepartidor/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar TypeScript
+        run: npx tsc --noEmit
