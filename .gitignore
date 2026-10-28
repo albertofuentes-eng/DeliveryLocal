@@ -65,3 +65,38 @@ Database/DeliveryLocal_Azure.sql
 # =========================
 *firebase-adminsdk*.json
 *service-account*.json
+
+# ==========================================
+# DeliveryLocal - Archivos locales y privados
+# ==========================================
+
+# Credenciales y archivos privados
+DeliveryApi/ArchivosPrivados/
+**/appsettings.Development.json
+**/appsettings.*.local.json
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Publicaciones de Azure
+/PublicacionAzure/
+/PublicacionAzureLinux/
+/PublicacionAzureLinuxSegura/
+/PublicacionAzureSegura/
+
+# Paquetes de publicación
+/DeliveryApi-Azure.zip
+/DeliveryApi-Linux-Azure.zip
+/LogsAzure.zip
+
+# Logs descargados de Azure
+/LogsAzure/
+
+# Copias de seguridad locales
+*.cs.bak
+*.json.bak
+
+# Archivos de configuración local
+.env.local
+.env.production.local

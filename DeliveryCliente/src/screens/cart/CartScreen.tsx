@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
@@ -71,11 +72,25 @@ export default function CartScreen() {
     );
   }
 
-  function confirmarVaciarCarrito() {
+    function confirmarVaciarCarrito() {
     if (carrito.length === 0) {
       return;
     }
 
+    // Chrome / Expo Web
+    if (Platform.OS === "web") {
+      const confirmar = window.confirm(
+        "¿Estás seguro de que deseas eliminar todos los productos del carrito?"
+      );
+
+      if (confirmar) {
+        vaciarCarrito();
+      }
+
+      return;
+    }
+
+    // APK Android / iOS
     Alert.alert(
       "Vaciar carrito",
       "¿Estás seguro de que deseas eliminar todos los productos?",
@@ -87,7 +102,7 @@ export default function CartScreen() {
         {
           text: "Vaciar",
           style: "destructive",
-          onPress: vaciarCarrito,
+          onPress: () => vaciarCarrito(),
         },
       ]
     );

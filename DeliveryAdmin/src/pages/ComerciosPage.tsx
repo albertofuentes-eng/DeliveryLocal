@@ -20,6 +20,8 @@ import {
   type ComercioAdmin,
 } from "../services/api";
 
+import NuevoRestauranteForm from "../components/NuevoRestauranteForm";
+
 type Filtro =
   | "Todos"
   | "Activos"
@@ -149,6 +151,8 @@ export default function ComerciosPage() {
           </button>
         </header>
 
+        <NuevoRestauranteForm onCreado={cargarComercios} />
+
         <section style={styles.summaryGrid}>
           <article style={styles.summaryCard}>
             <span style={styles.summaryLabel}>
@@ -267,6 +271,11 @@ export default function ComerciosPage() {
                   <InfoRow
                     label="Dirección"
                     value={comercio.direccion}
+                  />
+
+                  <InfoRow
+                    label="Municipio"
+                    value={comercio.municipio || "Sin municipio"}
                   />
 
                   <InfoRow

@@ -6,6 +6,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -105,11 +106,25 @@ export default function DetallePedidoScreen({
     }
   }
 
-  async function confirmarAceptar() {
-    if (!pedido || !token) {
+    function confirmarAceptar() {
+    if (!pedido || !token || aceptando) {
       return;
     }
 
+    // Confirmación para Chrome / Expo Web
+    if (Platform.OS === "web") {
+      const confirmado = window.confirm(
+        `¿Deseas tomar el pedido #${pedido.id}?`
+      );
+
+      if (confirmado) {
+        void ejecutarAceptarPedido();
+      }
+
+      return;
+    }
+
+    // Confirmación para Android / iOS
     Alert.alert(
       "Aceptar pedido",
       `¿Deseas tomar el pedido #${pedido.id}?`,
@@ -118,11 +133,11 @@ export default function DetallePedidoScreen({
           text: "Cancelar",
           style: "cancel",
         },
-
         {
           text: "Aceptar",
-          onPress:
-            ejecutarAceptarPedido,
+          onPress: () => {
+            void ejecutarAceptarPedido();
+          },
         },
       ]
     );

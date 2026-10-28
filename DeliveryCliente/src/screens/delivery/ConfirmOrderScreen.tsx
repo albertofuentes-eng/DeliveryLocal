@@ -1,817 +1,1454 @@
+﻿import React, { useRef, useState } from "react";
 
-import React, { useState } from "react";
 import {
+
   View,
+
   Text,
+
   StyleSheet,
+
   ScrollView,
+
   TouchableOpacity,
+
   Alert,
+
   ActivityIndicator,
+  Platform,
+  Linking,
+
 } from "react-native";
 
 import {
+
   useNavigation,
+
   useRoute,
+
 } from "@react-navigation/native";
 
 import { useCart } from "../../context/CartContext";
-import { useAuth } from "../../context/AuthContext";
-import { crearPedido } from "../../services/api";
 
-type MetodoPago = "Efectivo" | "Transferencia";
+import { useAuth } from "../../context/AuthContext";
+
+import {
+  crearPedido,
+  crearCheckoutTarjeta,
+} from "../../services/api";
+
+type MetodoPago = "Efectivo" | "Transferencia" | "Tarjeta";
 
 export default function ConfirmOrderScreen() {
+
   const navigation = useNavigation<any>();
+
   const route = useRoute<any>();
 
   const {
+
     carrito,
+
     subtotal,
+
     envio,
+
     vaciarCarrito,
+
   } = useCart();
 
   const { token } = useAuth();
 
   const [enviandoPedido, setEnviandoPedido] =
+
     useState(false);
 
+  const envioEnCursoRef = useRef(false);
+  const [pedidoRegistrado, setPedidoRegistrado] = useState(false);
+
   // FASE 3: MÉTODO DE PAGO
+
   const [metodoPago, setMetodoPago] =
+
     useState<MetodoPago>("Efectivo");
 
   const {
+
     tipoEntrega,
+
     direccion,
+
     latitude,
+
     longitude,
+
     tipoTiempo,
+
     fechaProgramada,
+
     horaProgramada,
+
     telefono,
+
     referencia,
+
     indicaciones,
+
   } = route.params || {};
 
   const envioFinal =
+
     tipoEntrega === "Recoger" ? 0 : envio;
 
   const totalFinal = subtotal + envioFinal;
 
   function construirFechaProgramada() {
+
     if (
+
       tipoTiempo !== "Despues" ||
+
       !fechaProgramada ||
+
       !horaProgramada
+
     ) {
+
       return null;
+
     }
 
     const partesFecha =
+
       fechaProgramada.split("/");
 
     if (partesFecha.length !== 3) {
+
       throw new Error(
+
         "La fecha programada no tiene un formato válido."
+
       );
+
     }
 
     const dia = Number(partesFecha[0]);
+
     const mes = Number(partesFecha[1]);
+
     const anio = Number(partesFecha[2]);
 
     const partesHora =
+
       horaProgramada.split(":");
 
     if (partesHora.length !== 2) {
+
       throw new Error(
+
         "La hora programada no tiene un formato válido."
+
       );
+
     }
 
     const hora = Number(partesHora[0]);
+
     const minuto = Number(partesHora[1]);
 
     if (
+
       Number.isNaN(dia) ||
+
       Number.isNaN(mes) ||
+
       Number.isNaN(anio) ||
+
       Number.isNaN(hora) ||
+
       Number.isNaN(minuto)
+
     ) {
+
       throw new Error(
+
         "La fecha u hora programada no es válida."
+
       );
+
     }
 
     const fecha = new Date(
+
       anio,
+
       mes - 1,
+
       dia,
+
       hora,
+
       minuto,
+
       0
+
     );
 
     return fecha.toISOString();
+
+  }
+
+  function mostrarAviso(titulo: string, mensaje: string) {
+    if (Platform.OS === "web") {
+      window.alert(`${titulo}\n\n${mensaje}`);
+    } else {
+      Alert.alert(titulo, mensaje);
+    }
   }
 
   async function confirmarPedido() {
-    if (enviandoPedido) {
+
+    if (enviandoPedido || pedidoRegistrado || envioEnCursoRef.current) {
+
       return;
+
     }
 
     if (carrito.length === 0) {
-      Alert.alert(
-        "Carrito vacío",
-        "No hay productos para confirmar."
-      );
+
+      mostrarAviso("Carrito vacío", "No hay productos para confirmar.");
+
       return;
+
     }
 
     if (!token) {
-      Alert.alert(
-        "Sesión requerida",
-        "Debes iniciar sesión nuevamente."
-      );
+
+      mostrarAviso("Sesión requerida", "Debes iniciar sesión nuevamente.");
+
       return;
+
     }
 
     const comercioId = carrito[0].comercioId;
 
     const productosDeOtroComercio =
+
       carrito.some(
+
         (item) =>
+
           item.comercioId !== comercioId
+
       );
 
     if (productosDeOtroComercio) {
-      Alert.alert(
-        "Pedido inválido",
-        "Todos los productos deben pertenecer al mismo comercio."
-      );
+
+      mostrarAviso("Pedido inválido", "Todos los productos deben pertenecer al mismo comercio.");
+
       return;
+
     }
 
+    envioEnCursoRef.current = true;
+    let guardadoEnServidor = false;
+
     try {
+
       setEnviandoPedido(true);
 
       const productos = carrito.map((item) => ({
+
         productoId: item.id,
+
         cantidad: item.cantidad,
+
       }));
 
       const fechaProgramadaApi =
+
         construirFechaProgramada();
 
       const pedido = await crearPedido(token, {
+
         comercioId,
 
         tipoEntrega,
 
         direccionEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? direccion
+
             : null,
 
         latitudEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? latitude
+
             : null,
 
         longitudEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? longitude
+
             : null,
 
         telefonoEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? telefono
+
             : null,
 
         referenciaEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? referencia
+
             : null,
 
         indicacionesEntrega:
+
           tipoEntrega === "Domicilio"
+
             ? indicaciones || null
+
             : null,
 
         tipoTiempo,
 
         fechaProgramada:
+
           fechaProgramadaApi,
 
         // FASE 3: ENVIAR MÉTODO DE PAGO
+
         metodoPago,
 
         productos,
+
       });
 
-      const mensajePago =
-        metodoPago === "Transferencia"
-          ? "\n\nMétodo de pago: Transferencia bancaria.\nEstado del pago: Pendiente de verificación."
-          : "\n\nMétodo de pago: Efectivo.\nEstado del pago: Pendiente.";
+            // ========================================
+            // PAGO CON TARJETA - RECURRENTE SANDBOX
+            // ========================================
 
-      Alert.alert(
-        "Pedido realizado ✅",
-        `Tu pedido #${pedido.id} fue registrado correctamente.\n\nTotal: Q ${Number(
-          pedido.total
-        ).toFixed(2)}${mensajePago}`,
-        [
-          {
-            text: "VER MIS PEDIDOS",
-            onPress: () => {
-              vaciarCarrito();
-              navigation.navigate("MisPedidos");
-            },
-          },
-        ],
-        {
-          cancelable: false,
-        }
-      );
+            if (metodoPago === "Tarjeta") {
+              try {
+                // El pedido ya existe en SQL Server.
+                // Ahora solicitamos el checkout a nuestra API.
+                const checkout = await crearCheckoutTarjeta(
+                  token,
+                  Number(pedido.id)
+                );
+
+                // En navegador web, abrimos el checkout
+                // en la misma pestaña.
+                if (Platform.OS === "web") {
+                  window.location.assign(checkout.checkoutUrl);
+                  return;
+                }
+
+                // En Android/iOS dejamos Mis Pedidos como
+                // pantalla de regreso después del navegador.
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: "MisPedidos" }],
+                });
+
+                await Linking.openURL(checkout.checkoutUrl);
+                return;
+
+              } catch (error: any) {
+                // IMPORTANTE:
+                // El pedido ya se creó. No debemos crearlo
+                // otra vez si falla el checkout.
+                mostrarAviso(
+                  "Pedido registrado - pago pendiente",
+                  `Tu pedido #${pedido.id} fue registrado, ` +
+                  "pero no pudimos abrir el pago con tarjeta.\n\n" +
+                  (error?.message || "Error al iniciar el pago.") +
+                  "\n\nNo confirmes nuevamente este pedido. " +
+                  "El pago todavía está pendiente."
+                );
+
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: "MisPedidos" }],
+                });
+
+                return;
+              }
+            }
+
+      // Los pagos en efectivo y transferencia
+      // continúan con su funcionamiento anterior.
+
+      // El servidor confirmó el pedido: limpiamos el carrito ahora,
+      // no cuando el usuario cierre el mensaje de éxito.
+      guardadoEnServidor = true;
+      vaciarCarrito();
+      setPedidoRegistrado(true);
+
+      const mensajePago = metodoPago === "Transferencia"
+        ? "\n\nMétodo de pago: Transferencia bancaria.\nEstado del pago: Pendiente de verificación."
+        : "\n\nMétodo de pago: Efectivo.\nEstado del pago: Pendiente.";
+
+      const mensaje = `Tu pedido #${pedido.id} fue registrado correctamente.\n\nTotal: Q ${Number(pedido.total).toFixed(2)}${mensajePago}`;
+
+      const irAMisPedidos = () => {
+        // Quita la pantalla de confirmación del historial de navegación.
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MisPedidos" }],
+        });
+      };
+
+      if (Platform.OS === "web") {
+        window.alert(`Pedido realizado ✅\n\n${mensaje}`);
+        irAMisPedidos();
+      } else {
+        Alert.alert("Pedido realizado ✅", mensaje, [
+          { text: "VER MIS PEDIDOS", onPress: irAMisPedidos },
+        ], { cancelable: false });
+      }
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.message ||
-          "No se pudo realizar el pedido."
-      );
+      // Solo habilitamos un nuevo intento si el pedido NO se creó.
+      if (!guardadoEnServidor) {
+        mostrarAviso("Error", error?.message || "No se pudo realizar el pedido.");
+      }
     } finally {
-      setEnviandoPedido(false);
+      if (!guardadoEnServidor) {
+        envioEnCursoRef.current = false;
+        setEnviandoPedido(false);
+      }
     }
   }
 
   return (
+
     <ScrollView
+
       style={styles.container}
+
       contentContainerStyle={
+
         styles.contentContainer
+
       }
+
     >
+
       <Text style={styles.title}>
+
         🧾 Resumen del pedido
+
       </Text>
 
       <Text style={styles.subtitle}>
+
         Revisa toda la información antes de confirmar.
+
       </Text>
 
       {/* PRODUCTOS */}
+
       <View style={styles.card}>
+
         <Text style={styles.cardTitle}>
+
           Productos
+
         </Text>
 
         {carrito.map((item) => (
+
           <View
+
             key={item.id}
+
             style={styles.productRow}
+
           >
+
             <View style={styles.productLeft}>
+
               <Text style={styles.productName}>
+
                 {item.nombre}
+
               </Text>
 
               <Text style={styles.productQuantity}>
+
                 {item.cantidad} x Q{" "}
+
                 {item.precio.toFixed(2)}
+
               </Text>
+
             </View>
 
             <Text style={styles.productTotal}>
+
               Q{" "}
+
               {(
+
                 item.precio * item.cantidad
+
               ).toFixed(2)}
+
             </Text>
+
           </View>
+
         ))}
+
       </View>
 
       {/* ENTREGA */}
+
       <View style={styles.card}>
+
         <Text style={styles.cardTitle}>
+
           🚚 Entrega
+
         </Text>
 
         <View style={styles.row}>
+
           <Text style={styles.label}>
+
             Tipo
+
           </Text>
 
           <Text style={styles.value}>
+
             {tipoEntrega}
+
           </Text>
+
         </View>
 
         {tipoEntrega === "Domicilio" && (
+
           <>
+
             <View style={styles.block}>
+
               <Text style={styles.label}>
+
                 Dirección
+
               </Text>
 
               <Text style={styles.blockValue}>
+
                 {direccion}
+
               </Text>
+
             </View>
 
             <View style={styles.row}>
+
               <Text style={styles.label}>
+
                 Teléfono
+
               </Text>
 
               <Text style={styles.value}>
+
                 {telefono}
+
               </Text>
+
             </View>
 
             <View style={styles.block}>
+
               <Text style={styles.label}>
+
                 Referencia
+
               </Text>
 
               <Text style={styles.blockValue}>
+
                 {referencia}
+
               </Text>
+
             </View>
 
             {indicaciones ? (
+
               <View style={styles.block}>
+
                 <Text style={styles.label}>
+
                   Indicaciones
+
                 </Text>
 
                 <Text style={styles.blockValue}>
+
                   {indicaciones}
+
                 </Text>
+
               </View>
+
             ) : null}
+
           </>
+
         )}
 
         {tipoEntrega === "Recoger" && (
+
           <Text style={styles.pickupText}>
+
             🏪 Recogerás el pedido directamente
+
             en el comercio.
+
           </Text>
+
         )}
+
       </View>
 
       {/* HORARIO */}
+
       <View style={styles.card}>
+
         <Text style={styles.cardTitle}>
+
           🕒 Cuándo
+
         </Text>
 
         <View style={styles.row}>
+
           <Text style={styles.label}>
+
             Modalidad
+
           </Text>
 
           <Text style={styles.value}>
+
             {tipoTiempo === "Ahora"
+
               ? "Lo antes posible"
+
               : "Programado"}
+
           </Text>
+
         </View>
 
         {tipoTiempo === "Despues" && (
+
           <>
+
             <View style={styles.row}>
+
               <Text style={styles.label}>
+
                 Fecha
+
               </Text>
 
               <Text style={styles.value}>
+
                 {fechaProgramada}
+
               </Text>
+
             </View>
 
             <View style={styles.row}>
+
               <Text style={styles.label}>
+
                 Hora
+
               </Text>
 
               <Text style={styles.value}>
+
                 {horaProgramada}
+
               </Text>
+
             </View>
+
           </>
+
         )}
+
       </View>
 
       {/* FASE 3: MÉTODO DE PAGO */}
+
       <View style={styles.card}>
+
         <Text style={styles.cardTitle}>
+
           💳 Método de pago
+
         </Text>
 
         <Text style={styles.paymentSubtitle}>
+
           Selecciona cómo deseas pagar.
+
         </Text>
 
         <TouchableOpacity
+
           style={[
+
             styles.paymentOption,
+
             metodoPago === "Efectivo" &&
+
               styles.paymentOptionSelected,
+
           ]}
+
           onPress={() =>
+
             setMetodoPago("Efectivo")
+
           }
-          disabled={enviandoPedido}
+
+          disabled={enviandoPedido || pedidoRegistrado}
+
           accessibilityRole="radio"
+
           accessibilityState={{
+
             selected: metodoPago === "Efectivo",
+
           }}
+
         >
+
           <View style={styles.radioOuter}>
+
             {metodoPago === "Efectivo" && (
+
               <View style={styles.radioInner} />
+
             )}
+
           </View>
 
           <View style={styles.paymentContent}>
+
             <Text style={styles.paymentTitle}>
+
               💵 Efectivo
+
             </Text>
 
             <Text style={styles.paymentDescription}>
+
               Paga al recibir o recoger
+
               tu pedido.
+
             </Text>
+
           </View>
+
         </TouchableOpacity>
+
+        <TouchableOpacity
+
+          style={[
+
+            styles.paymentOption,
+
+            metodoPago === "Transferencia" &&
+
+              styles.paymentOptionSelected,
+
+          ]}
+
+          onPress={() =>
+
+            setMetodoPago("Transferencia")
+
+          }
+
+          disabled={enviandoPedido || pedidoRegistrado}
+
+          accessibilityRole="radio"
+
+          accessibilityState={{
+
+            selected:
+
+              metodoPago === "Transferencia",
+
+          }}
+
+        >
+
+          <View style={styles.radioOuter}>
+
+
+            {metodoPago === "Transferencia" && (
+
+              <View style={styles.radioInner} />
+
+            )}
+
+          </View>
+
+          <View style={styles.paymentContent}>
+
+            <Text style={styles.paymentTitle}>
+
+              🏦 Transferencia bancaria
+
+            </Text>
+
+            <Text style={styles.paymentDescription}>
+
+              Registra el pedido con pago
+
+              pendiente de verificación.
+
+            </Text>
+
+          </View>
+
+        </TouchableOpacity>
+                  {/* PAGO CON TARJETA */}
 
         <TouchableOpacity
           style={[
             styles.paymentOption,
-            metodoPago === "Transferencia" &&
+            metodoPago === "Tarjeta" &&
               styles.paymentOptionSelected,
           ]}
-          onPress={() =>
-            setMetodoPago("Transferencia")
-          }
-          disabled={enviandoPedido}
+          onPress={() => setMetodoPago("Tarjeta")}
+          disabled={enviandoPedido || pedidoRegistrado}
           accessibilityRole="radio"
           accessibilityState={{
-            selected:
-              metodoPago === "Transferencia",
+            selected: metodoPago === "Tarjeta",
           }}
         >
           <View style={styles.radioOuter}>
-            {metodoPago === "Transferencia" && (
+            {metodoPago === "Tarjeta" && (
               <View style={styles.radioInner} />
             )}
           </View>
 
           <View style={styles.paymentContent}>
             <Text style={styles.paymentTitle}>
-              🏦 Transferencia bancaria
+              💳 Tarjeta de crédito o débito
             </Text>
 
             <Text style={styles.paymentDescription}>
-              Registra el pedido con pago
-              pendiente de verificación.
+              Paga de forma segura mediante
+              Recurrente.
             </Text>
           </View>
         </TouchableOpacity>
 
-        {metodoPago === "Transferencia" && (
+        {metodoPago === "Tarjeta" && (
           <View style={styles.paymentNotice}>
             <Text style={styles.paymentNoticeText}>
-              ℹ️ El pedido se registrará
-              como pendiente de pago.
-              Próximamente integraremos
-              los datos bancarios y la carga
-              del comprobante.
+              Serás dirigido a Recurrente Sandbox
+              para realizar el pago de prueba.
+              El pedido quedará pendiente hasta
+              que el servidor confirme el cobro.
             </Text>
           </View>
+        )}
+
+        {metodoPago === "Transferencia" && (
+
+          <View style={styles.paymentNotice}>
+
+            <Text style={styles.paymentNoticeText}>
+
+              ℹ️ El pedido se registrará
+
+              como pendiente de pago.
+
+              Próximamente integraremos
+
+              los datos bancarios y la carga
+
+              del comprobante.
+
+            </Text>
+
+          </View>
+
         )}
 
         {metodoPago === "Efectivo" && (
+
           <View style={styles.paymentNotice}>
+
             <Text style={styles.paymentNoticeText}>
+
               ℹ️ El pago en efectivo quedará
+
               pendiente hasta que se registre
+
               su cobro.
+
             </Text>
+
           </View>
+
         )}
+
       </View>
 
       {/* TOTALES */}
+
       <View style={styles.totalCard}>
+
         <View style={styles.row}>
+
           <Text style={styles.totalLabelSmall}>
+
             Subtotal
+
           </Text>
 
           <Text style={styles.totalValueSmall}>
+
             Q {subtotal.toFixed(2)}
+
           </Text>
+
         </View>
 
         <View style={styles.row}>
+
           <Text style={styles.totalLabelSmall}>
+
             Envío
+
           </Text>
 
           <Text style={styles.totalValueSmall}>
+
             Q {envioFinal.toFixed(2)}
+
           </Text>
+
         </View>
 
         <View style={styles.separator} />
 
         <View style={styles.row}>
+
           <Text style={styles.totalLabel}>
+
             Total
+
           </Text>
 
           <Text style={styles.totalValue}>
+
             Q {totalFinal.toFixed(2)}
+
           </Text>
+
         </View>
+
       </View>
 
       {/* CONFIRMAR PEDIDO */}
+
       <TouchableOpacity
+
         style={[
+
           styles.confirmButton,
+
           enviandoPedido &&
+
             styles.confirmButtonDisabled,
+
         ]}
+
         onPress={confirmarPedido}
-        disabled={enviandoPedido}
+
+        disabled={enviandoPedido || pedidoRegistrado}
+
       >
+
         {enviandoPedido ? (
+
           <ActivityIndicator
+
             color="#FFFFFF"
+
           />
+
         ) : (
+
           <Text style={styles.confirmButtonText}>
+
             CONFIRMAR PEDIDO
+
           </Text>
+
         )}
+
       </TouchableOpacity>
 
       <TouchableOpacity
+
         style={styles.backButton}
+
         onPress={() =>
+
           navigation.goBack()
+
         }
-        disabled={enviandoPedido}
+
+        disabled={enviandoPedido || pedidoRegistrado}
+
       >
+
         <Text style={styles.backButtonText}>
+
           REGRESAR
+
         </Text>
+
       </TouchableOpacity>
+
     </ScrollView>
+
   );
+
 }
 
 const styles = StyleSheet.create({
+
   container: {
+
     flex: 1,
+
     backgroundColor: "#F5F5F5",
+
   },
 
   contentContainer: {
+
     padding: 20,
+
     paddingBottom: 45,
+
   },
 
   title: {
+
     fontSize: 27,
+
     fontWeight: "bold",
+
     color: "#E53935",
+
     marginTop: 30,
+
   },
 
   subtitle: {
+
     fontSize: 16,
+
     color: "#666",
+
     marginTop: 8,
+
     marginBottom: 22,
+
   },
 
   card: {
+
     backgroundColor: "#FFFFFF",
+
     padding: 17,
+
     borderRadius: 12,
+
     marginBottom: 15,
+
     elevation: 2,
+
   },
 
   cardTitle: {
+
     fontSize: 19,
+
     fontWeight: "bold",
+
     marginBottom: 15,
+
   },
 
   productRow: {
+
     flexDirection: "row",
+
     justifyContent: "space-between",
+
     alignItems: "center",
+
     marginBottom: 13,
+
   },
 
   productLeft: {
+
     flex: 1,
+
     paddingRight: 12,
+
   },
 
   productName: {
+
     fontSize: 16,
+
     fontWeight: "bold",
+
   },
 
   productQuantity: {
+
     color: "#777",
+
     marginTop: 4,
+
   },
 
   productTotal: {
+
     fontWeight: "bold",
+
     fontSize: 16,
+
   },
 
   row: {
+
     flexDirection: "row",
+
     justifyContent: "space-between",
+
     marginBottom: 11,
+
   },
 
   block: {
+
     marginBottom: 13,
+
   },
 
   label: {
+
     color: "#777",
+
     fontSize: 14,
+
   },
 
   value: {
+
     fontSize: 15,
+
     fontWeight: "600",
+
     maxWidth: "60%",
+
     textAlign: "right",
+
   },
 
   blockValue: {
+
     marginTop: 5,
+
     fontSize: 15,
+
     fontWeight: "600",
+
     lineHeight: 21,
+
   },
 
   pickupText: {
+
     color: "#555",
+
     lineHeight: 21,
+
   },
 
   // FASE 3: ESTILOS DE PAGO
 
   paymentSubtitle: {
+
     fontSize: 14,
+
     color: "#666",
+
     marginBottom: 14,
+
   },
 
   paymentOption: {
+
     flexDirection: "row",
+
     alignItems: "center",
+
     borderWidth: 1,
+
     borderColor: "#DDDDDD",
+
     borderRadius: 10,
+
     padding: 14,
+
     marginBottom: 12,
+
     backgroundColor: "#FFFFFF",
+
   },
 
   paymentOptionSelected: {
+
     borderColor: "#E53935",
+
     borderWidth: 2,
+
     backgroundColor: "#FFF5F5",
+
   },
 
   radioOuter: {
+
     width: 22,
+
     height: 22,
+
     borderRadius: 11,
+
     borderWidth: 2,
+
     borderColor: "#E53935",
+
     alignItems: "center",
+
     justifyContent: "center",
+
     marginRight: 12,
+
   },
 
   radioInner: {
+
     width: 12,
+
     height: 12,
+
     borderRadius: 6,
+
     backgroundColor: "#E53935",
+
   },
 
   paymentContent: {
+
     flex: 1,
+
   },
 
   paymentTitle: {
+
     fontSize: 16,
+
     fontWeight: "bold",
+
     color: "#222222",
+
   },
 
   paymentDescription: {
+
     fontSize: 13,
+
     color: "#666666",
+
     marginTop: 5,
+
     lineHeight: 19,
+
   },
 
   paymentNotice: {
+
     backgroundColor: "#F2F5FA",
+
     padding: 12,
+
     borderRadius: 8,
+
     marginTop: 3,
+
   },
 
   paymentNoticeText: {
+
     color: "#455A64",
+
     fontSize: 13,
+
     lineHeight: 20,
+
   },
 
   totalCard: {
+
     backgroundColor: "#FFFFFF",
+
     padding: 18,
+
     borderRadius: 12,
+
     marginTop: 5,
+
     elevation: 3,
+
   },
 
   totalLabelSmall: {
+
     fontSize: 16,
+
     color: "#555",
+
   },
 
   totalValueSmall: {
+
     fontSize: 16,
+
     fontWeight: "600",
+
   },
 
   separator: {
+
     height: 1,
+
     backgroundColor: "#DDDDDD",
+
     marginVertical: 7,
+
   },
 
   totalLabel: {
+
     fontSize: 22,
+
     fontWeight: "bold",
+
   },
 
   totalValue: {
+
     fontSize: 22,
+
     fontWeight: "bold",
+
     color: "#E53935",
+
   },
 
   confirmButton: {
+
     backgroundColor: "#E53935",
+
     padding: 16,
+
     borderRadius: 10,
+
     marginTop: 20,
+
     minHeight: 55,
+
     justifyContent: "center",
+
   },
 
   confirmButtonDisabled: {
+
     opacity: 0.6,
+
   },
 
   confirmButtonText: {
+
     color: "#FFFFFF",
+
     textAlign: "center",
+
     fontWeight: "bold",
+
     fontSize: 17,
+
   },
 
   backButton: {
+
     padding: 14,
+
     marginTop: 8,
+
   },
 
   backButtonText: {
+
     textAlign: "center",
+
     color: "#E53935",
+
     fontWeight: "bold",
+
   },
+
 });

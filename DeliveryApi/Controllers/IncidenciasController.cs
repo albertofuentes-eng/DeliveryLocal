@@ -399,6 +399,147 @@ public class IncidenciasController : ControllerBase
         });
     }
 
+    // ==========================================
+// ADMINISTRADOR: RESOLVER INCIDENCIA
+// Y CANCELAR ENTREGA
+// PUT: api/Incidencias/{id}/resolver-y-cancelar
+// ==========================================
+
+[HttpPut("{id:int}/resolver-y-cancelar")]
+[Authorize(Roles = "Administrador")]
+public async Task<IActionResult> ResolverYCancelarEntrega(
+    int id,
+    [FromBody] ResolverIncidenciaDto dto)
+{
+    var administradorId = ObtenerUsuarioId();
+
+    if (administradorId == null)
+        return Unauthorized();
+
+    if (dto == null ||
+        dto.Estado?.Trim() != "Resuelta" ||
+        string.IsNullOrWhiteSpace(dto.Resolucion) ||
+        dto.Resolucion.Trim().Length > 1000)
+    {
+        return BadRequest(new
+        {
+            mensaje = "Debes indicar el estado Resuelta y una resolución válida."
+        });
+    }
+
+    var incidencia = await _context.IncidenciasPedido
+        .AsNoTracking()
+        .FirstOrDefaultAsync(i => i.Id == id);
+
+    if (incidencia == null)
+        return NotFound(new { mensaje = "Incidencia no encontrada." });
+
+    if (incidencia.Estado != "Pendiente")
+        return Conflict(new { mensaje = "La incidencia ya fue procesada." });
+
+    var pedido = await _context.Pedidos
+        .AsNoTracking()
+        .FirstOrDefaultAsync(p => p.Id == incidencia.PedidoId);
+
+    if (pedido == null)
+        return NotFound(new { mensaje = "Pedido no encontrado." });
+
+    if (pedido.TipoEntrega != "Domicilio" ||
+        pedido.Estado != "En camino" ||
+        pedido.RepartidorId == null ||
+        pedido.RepartidorId != incidencia.RepartidorId)
+    {
+        return Conflict(new
+        {
+            mensaje = "El pedido no cumple las condiciones para cancelar esta entrega."
+        });
+    }
+
+    var repartidorId = pedido.RepartidorId.Value;
+    var ahora = DateTime.UtcNow;
+
+    await using var transaccion =
+        await _context.Database.BeginTransactionAsync();
+
+    // Cancelar solamente si el pedido sigue en camino.
+    var pedidosActualizados = await _context.Pedidos
+        .Where(p =>
+            p.Id == pedido.Id &&
+            p.Estado == "En camino" &&
+            p.RepartidorId == repartidorId)
+        .ExecuteUpdateAsync(setters => setters
+            .SetProperty(p => p.Estado, "Cancelado")
+        );
+
+    if (pedidosActualizados != 1)
+    {
+        await transaccion.RollbackAsync();
+
+        return Conflict(new
+        {
+            mensaje = "El pedido cambió de estado. Actualiza la información."
+        });
+    }
+
+    // Resolver únicamente una incidencia pendiente.
+    var incidenciasActualizadas = await _context.IncidenciasPedido
+        .Where(i =>
+            i.Id == id &&
+            i.Estado == "Pendiente")
+        .ExecuteUpdateAsync(setters => setters
+            .SetProperty(i => i.Estado, "Resuelta")
+            .SetProperty(i => i.Resolucion, dto.Resolucion.Trim())
+            .SetProperty(i => i.AdministradorId, administradorId.Value)
+            .SetProperty(i => i.FechaResolucion, ahora)
+        );
+
+    if (incidenciasActualizadas != 1)
+    {
+        await transaccion.RollbackAsync();
+
+        return Conflict(new
+        {
+            mensaje = "La incidencia cambió de estado. Actualiza la información."
+        });
+    }
+
+    // No liberar al repartidor si tiene otra entrega activa.
+    var tieneOtraEntregaActiva = await _context.Pedidos
+        .AnyAsync(p =>
+            p.RepartidorId == repartidorId &&
+            p.Id != pedido.Id &&
+            p.Estado != "Entregado" &&
+            p.Estado != "Cancelado");
+
+    var repartidorLiberado = false;
+
+    if (!tieneOtraEntregaActiva)
+    {
+        var repartidor = await _context.Repartidores
+            .FirstOrDefaultAsync(r => r.Id == repartidorId);
+
+        if (repartidor != null)
+        {
+            repartidor.Disponible = true;
+            repartidorLiberado = true;
+        }
+    }
+
+    await _context.SaveChangesAsync();
+    await transaccion.CommitAsync();
+
+    return Ok(new
+    {
+        incidenciaId = id,
+        pedidoId = pedido.Id,
+        estadoIncidencia = "Resuelta",
+        estadoPedido = "Cancelado",
+        repartidorId,
+        repartidorLiberado,
+        mensaje = "Incidencia resuelta y entrega cancelada correctamente."
+    });
+}
+
 
     // ==========================================
     // FASE 4: SUBIR EVIDENCIA FOTOGRÁFICA

@@ -267,7 +267,7 @@ export default function HomeScreen() {
         </Text>
       )}
 
-      {municipioConfirmado &&
+      {Boolean(municipioConfirmado) &&
         !cargando &&
         !error &&
         comercios.length === 0 && (

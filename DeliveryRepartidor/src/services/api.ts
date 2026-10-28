@@ -1,4 +1,9 @@
-const API_URL = "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
+import { Platform } from "react-native";
+
+const API_URL =
+  Platform.OS === "web"
+    ? "http://localhost:5022"
+    : "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
 
 // ==========================================
 // AUTENTICACIÓN
@@ -602,6 +607,40 @@ export type IncidenciaCreada = {
   evidenciaUrl?: string | null;
 };
 
+
+export type IncidenciaRepartidor = {
+  id: number;
+  pedidoId: number;
+  motivo: string;
+  descripcion: string;
+  evidenciaUrl: string | null;
+  estado: string;
+  fechaReporte: string;
+  resolucion: string | null;
+  fechaResolucion: string | null;
+};
+
+// Consultar incidencias registradas por el repartidor.
+export async function obtenerMisIncidencias(
+  token: string
+): Promise<IncidenciaRepartidor[]> {
+  const response = await fetch(
+    `${API_URL}/api/Incidencias/mis-incidencias`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return await leerRespuesta(
+    response,
+    "No se pudieron consultar las incidencias."
+  );
+}
+
+
 export async function crearIncidencia(
   token: string,
   datos: CrearIncidenciaRequest
@@ -644,6 +683,7 @@ export async function crearIncidencia(
 // FASE 4: SUBIR FOTOGRAFÍA DE EVIDENCIA
 // ==========================================
 
+
 export async function subirEvidenciaIncidencia(
   token: string,
   incidenciaId: number,
@@ -658,12 +698,13 @@ export async function subirEvidenciaIncidencia(
   }
 
   const uriSinParametros = imagenUri.split("?")[0];
+
   const extensionOriginal = uriSinParametros
     .split(".")
     .pop()
     ?.toLowerCase();
 
-  const extension =
+  const extensionInicial =
     extensionOriginal === "png" ||
     extensionOriginal === "webp" ||
     extensionOriginal === "jpg" ||
@@ -671,23 +712,63 @@ export async function subirEvidenciaIncidencia(
       ? extensionOriginal
       : "jpg";
 
-  const mimeType =
-    extension === "png"
-      ? "image/png"
-      : extension === "webp"
-        ? "image/webp"
-        : "image/jpeg";
-
   const formData = new FormData();
 
-  formData.append(
-    "archivo",
-    {
-      uri: imagenUri,
-      name: `evidencia-${incidenciaId}.${extension}`,
-      type: mimeType,
-    } as any
-  );
+  if (Platform.OS === "web") {
+    // En navegador debemos enviar un Blob real.
+    const respuestaImagen = await fetch(imagenUri);
+
+    if (!respuestaImagen.ok) {
+      throw new Error("No se pudo leer la fotografía seleccionada.");
+    }
+
+    const blob = await respuestaImagen.blob();
+
+    const tipoReal = blob.type.toLowerCase();
+
+    const mimeType =
+      tipoReal === "image/png" ||
+      tipoReal === "image/webp" ||
+      tipoReal === "image/jpeg"
+        ? tipoReal
+        : "";
+
+    if (!mimeType) {
+      throw new Error(
+        "Formato de fotografía no permitido. Utiliza JPG, PNG o WEBP."
+      );
+    }
+
+    const extension =
+      mimeType === "image/png"
+        ? "png"
+        : mimeType === "image/webp"
+          ? "webp"
+          : "jpg";
+
+    formData.append(
+      "archivo",
+      blob,
+      `evidencia-${incidenciaId}.${extension}`
+    );
+  } else {
+    // En Android/iOS mantenemos el formato de React Native.
+    const mimeType =
+      extensionInicial === "png"
+        ? "image/png"
+        : extensionInicial === "webp"
+          ? "image/webp"
+          : "image/jpeg";
+
+    formData.append(
+      "archivo",
+      {
+        uri: imagenUri,
+        name: `evidencia-${incidenciaId}.${extensionInicial}`,
+        type: mimeType,
+      } as any
+    );
+  }
 
   const response = await fetch(
     `${API_URL}/api/Incidencias/${incidenciaId}/evidencia`,
@@ -705,6 +786,7 @@ export async function subirEvidenciaIncidencia(
     "No se pudo subir la fotografía."
   );
 }
+
 
 
 //

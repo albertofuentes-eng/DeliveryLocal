@@ -28,13 +28,17 @@ builder.Services.AddCors(options =>
     options.AddPolicy("DeliveryPosPolicy", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:5173",
-                "https://aquamarine-baklava-e58cff.netlify.app",
-                "https://deliverylocal-admin.netlify.app"
-            )  
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+            
+                .WithOrigins(
+                    "http://localhost:5173",
+                    "http://localhost:5174",
+                    "http://localhost:8081",
+                    "http://localhost:8082",
+                    "https://aquamarine-baklava-e58cff.netlify.app",
+                    "https://deliverylocal-admin.netlify.app"
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod();
     });
 });
 
@@ -45,6 +49,9 @@ builder.Services.AddScoped<JwtService>();
 builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<ExpoPushService>();
+
+// Servicio de pagos con Recurrente
+builder.Services.AddScoped<RecurrenteService>();
 
 // Configuración JWT
 var jwtKey = builder.Configuration["Jwt:Key"]

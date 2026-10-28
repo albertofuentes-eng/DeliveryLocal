@@ -60,6 +60,13 @@ const opciones: MenuItem[] = [
   },
 
   {
+    texto: "Reembolsos",
+    icono: "💰",
+    ruta: "/reembolsos",
+    disponible: true,
+  },
+
+  {
     texto: "Calificaciones",
     icono: "⭐",
     ruta: "/calificaciones",

@@ -1,4 +1,6 @@
-const API_URL = "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  "http://localhost:5022";
 
 // ========================================
 // COMERCIOS
@@ -300,7 +302,7 @@ export async function crearPedido(
   token: string,
   datos: {
     comercioId: number;
-    metodoPago?: "Efectivo" | "Transferencia";
+    metodoPago?: "Efectivo" | "Transferencia" | "Tarjeta";
 
     tipoEntrega:
       | "Domicilio"
@@ -750,4 +752,134 @@ export async function crearCalificacionPedido(
   }
 
   return data;
+}
+
+// ========================================
+// PAGOS: SUBIR COMPROBANTE DE TRANSFERENCIA
+// ========================================
+
+export async function subirComprobantePedido(
+  token: string,
+  pedidoId: number,
+  archivo: {
+    uri: string;
+    file?: Blob;
+    mimeType?: string | null;
+    fileName?: string | null;
+    fileSize?: number;
+  }
+) {
+  const formData = new FormData();
+
+  const nombreArchivo =
+    archivo.fileName || "comprobante.jpg";
+
+  const tipoArchivo =
+    archivo.mimeType || "image/jpeg";
+
+  if (archivo.file) {
+    // Navegador web
+    formData.append(
+      "archivo",
+      archivo.file,
+      nombreArchivo
+    );
+  } else {
+    // Android / iOS
+    formData.append(
+      "archivo",
+      {
+        uri: archivo.uri,
+        name: nombreArchivo,
+        type: tipoArchivo,
+      } as any
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Pagos/pedido/${pedidoId}/comprobante`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    }
+  );
+
+  const texto = await response.text();
+
+  let data: any = {};
+
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.mensaje ||
+      `No se pudo subir el comprobante (${response.status}).`
+    );
+  }
+
+  return data;
+}
+
+// ========================================
+// PAGOS CON TARJETA - RECURRENTE SANDBOX
+// ========================================
+
+export type CheckoutTarjeta = {
+  pedidoId: number;
+  transaccionId: number;
+  monto: number;
+  moneda: string;
+  checkoutId: string;
+  checkoutUrl: string;
+  estadoPago: string;
+};
+
+export async function crearCheckoutTarjeta(
+  token: string,
+  pedidoId: number
+): Promise<CheckoutTarjeta> {
+
+  if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+    throw new Error("El pedido no es válido.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/pagos-tarjeta/pedidos/${pedidoId}/checkout`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+      `No se pudo iniciar el pago con tarjeta. Código: ${response.status}`
+    );
+  }
+
+  if (
+    typeof data?.checkoutUrl !== "string" ||
+    !data.checkoutUrl.startsWith("https://")
+  ) {
+    throw new Error(
+      "Recurrente no devolvió una dirección de pago válida."
+    );
+  }
+
+  return data as CheckoutTarjeta;
 }

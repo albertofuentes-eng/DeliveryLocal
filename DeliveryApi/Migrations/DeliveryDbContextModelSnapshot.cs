@@ -419,6 +419,9 @@ namespace DeliveryApi.Migrations
                     b.Property<DateTime?>("FechaProgramada")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("FechaVerificacionPago")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("IndicacionesEntrega")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -594,6 +597,61 @@ namespace DeliveryApi.Migrations
                         .IsUnique();
 
                     b.ToTable("Repartidores");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.SolicitudReembolso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Pendiente");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaResolucion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Moneda")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasDefaultValue("GTQ");
+
+                    b.Property<decimal>("Monto")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ObservacionAdmin")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("PedidoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenciaDevolucion")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PedidoId")
+                        .IsUnique();
+
+                    b.ToTable("SolicitudesReembolso");
                 });
 
             modelBuilder.Entity("DeliveryApi.Models.SolicitudRepartidor", b =>
@@ -916,6 +974,17 @@ namespace DeliveryApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("DeliveryApi.Models.SolicitudReembolso", b =>
+                {
+                    b.HasOne("DeliveryApi.Models.Pedido", "Pedido")
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pedido");
                 });
 
             modelBuilder.Entity("DeliveryApi.Models.SolicitudRepartidor", b =>

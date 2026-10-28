@@ -364,10 +364,15 @@ public class ComerciosController : ControllerBase
         comercio.Direccion =
             comercio.Direccion.Trim();
 
-        comercio.Municipio =
-            string.IsNullOrWhiteSpace(comercio.Municipio)
-                ? "Coatepeque"
-                : comercio.Municipio.Trim();
+        if (string.IsNullOrWhiteSpace(comercio.Municipio))
+        {
+            return BadRequest(new
+            {
+                mensaje = "Debes indicar el municipio del restaurante."
+            });
+        }
+
+        comercio.Municipio = comercio.Municipio.Trim();
 
         comercio.Descripcion =
             comercio.Descripcion?.Trim();

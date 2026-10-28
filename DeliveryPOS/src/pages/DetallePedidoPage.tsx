@@ -20,6 +20,12 @@ export default function DetallePedidoPage() {
   const [actualizando, setActualizando] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
+  // Bloquear acciones del comercio si la
+  // transferencia aún no está verificada.
+  const pagoTransferenciaSinVerificar =
+    pedido?.metodoPago === "Transferencia" &&
+    pedido?.estadoPago !== "Verificado";
+
   // FASE 3: verificación de entrega en comercio
   const [codigoEntrega, setCodigoEntrega] = useState("");
   const [mostrarFormularioCodigo, setMostrarFormularioCodigo] =
@@ -347,10 +353,34 @@ export default function DetallePedidoPage() {
         </section>
 
         <section className="status-actions">
-          <h2>Cambiar estado</h2>
+            <h2>Cambiar estado</h2>
 
-          <div className="status-buttons">
-            {pedido.estado === "Pendiente" && (
+            {pagoTransferenciaSinVerificar && (
+              <div
+                role="status"
+                style={{
+                  backgroundColor: "#fff3cd",
+                  color: "#856404",
+                  padding: "16px",
+                  borderRadius: "10px",
+                  border: "1px solid #ffe69c",
+                  marginBottom: "16px",
+                }}
+              >
+                <strong>
+                  Pago por transferencia pendiente de verificación
+                </strong>
+
+                <p style={{ marginBottom: 0 }}>
+                  El administrador debe verificar la transferencia
+                  antes de que el comercio pueda procesar este pedido.
+                </p>
+              </div>
+            )}
+
+            <div className="status-buttons">
+            {pedido.estado === "Pendiente" &&
+              !pagoTransferenciaSinVerificar && (
               <>
                 <button
                   disabled={actualizando}
@@ -369,7 +399,8 @@ export default function DetallePedidoPage() {
               </>
             )}
 
-            {pedido.estado === "Confirmado" && (
+            {pedido.estado === "Confirmado" &&
+            !pagoTransferenciaSinVerificar && (
               <>
                 <button
                   disabled={actualizando}
@@ -388,7 +419,8 @@ export default function DetallePedidoPage() {
               </>
             )}
 
-            {pedido.estado === "Preparando" && (
+            {pedido.estado === "Preparando" &&
+            !pagoTransferenciaSinVerificar && (
               <button
                 disabled={actualizando}
                 onClick={() =>

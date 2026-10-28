@@ -41,6 +41,9 @@ import CalificacionesPage
 import PagosPage
   from "./pages/PagosPage";
 
+import ReembolsosPage
+  from "./pages/ReembolsosPage";
+
 function RutaAdministrador({
   children,
 }: {
@@ -210,6 +213,15 @@ function App() {
         element={
           <RutaAdministrador>
             <PagosPage />
+          </RutaAdministrador>
+        }
+      />
+
+      <Route
+        path="/reembolsos"
+        element={
+          <RutaAdministrador>
+            <ReembolsosPage />
           </RutaAdministrador>
         }
       />

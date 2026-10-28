@@ -18,8 +18,9 @@ public class Comercio
     public string Direccion { get; set; } = string.Empty;
 
     // Campo de Zona/Municipio para delimitación geográfica
+    [Required(ErrorMessage = "El municipio es obligatorio.")]
     [MaxLength(100)]
-    public string Municipio { get; set; } = "Coatepeque";
+    public string Municipio { get; set; } = string.Empty;
 
     [MaxLength(20)]
     public string? Telefono { get; set; }

@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useContext,
@@ -6,6 +7,7 @@ import React, {
 } from "react";
 
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 import {
   iniciarSesion as loginApi,
@@ -42,6 +44,38 @@ const AuthContext = createContext({} as AuthContextType);
 const TOKEN_KEY = "deliverylocal_token";
 const USER_KEY = "deliverylocal_usuario";
 
+// Almacenamiento compatible con Android y navegador.
+const almacenamiento = {
+  async obtener(clave: string): Promise<string | null> {
+    if (Platform.OS === "web") {
+      return window.localStorage.getItem(clave);
+    }
+
+    return SecureStore.getItemAsync(clave);
+  },
+
+  async guardar(
+    clave: string,
+    valor: string
+  ): Promise<void> {
+    if (Platform.OS === "web") {
+      window.localStorage.setItem(clave, valor);
+      return;
+    }
+
+    await SecureStore.setItemAsync(clave, valor);
+  },
+
+  async eliminar(clave: string): Promise<void> {
+    if (Platform.OS === "web") {
+      window.localStorage.removeItem(clave);
+      return;
+    }
+
+    await SecureStore.deleteItemAsync(clave);
+  },
+};
+
 export function AuthProvider({
   children,
 }: {
@@ -61,6 +95,10 @@ export function AuthProvider({
   }, []);
 
   async function registrarPush(tokenJwt: string) {
+    // Las notificaciones push se mantienen en Android.
+    // En Chrome se omite su registro.
+    if (Platform.OS === "web") return;
+
     try {
       const expoPushToken =
         await obtenerExpoPushToken();
@@ -86,10 +124,10 @@ export function AuthProvider({
   async function cargarSesion() {
     try {
       const tokenGuardado =
-        await SecureStore.getItemAsync(TOKEN_KEY);
+        await almacenamiento.obtener(TOKEN_KEY);
 
       const usuarioGuardado =
-        await SecureStore.getItemAsync(USER_KEY);
+        await almacenamiento.obtener(USER_KEY);
 
       if (tokenGuardado && usuarioGuardado) {
         setToken(tokenGuardado);
@@ -113,12 +151,12 @@ export function AuthProvider({
       password
     );
 
-    await SecureStore.setItemAsync(
+    await almacenamiento.guardar(
       TOKEN_KEY,
       data.token
     );
 
-    await SecureStore.setItemAsync(
+    await almacenamiento.guardar(
       USER_KEY,
       JSON.stringify(data.usuario)
     );
@@ -130,8 +168,8 @@ export function AuthProvider({
   }
 
   async function cerrarSesion() {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_KEY);
+    await almacenamiento.eliminar(TOKEN_KEY);
+    await almacenamiento.eliminar(USER_KEY);
 
     setToken(null);
     setUsuario(null);

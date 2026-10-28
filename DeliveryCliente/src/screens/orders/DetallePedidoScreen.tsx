@@ -22,6 +22,9 @@ import {
 
 import QRCode from "react-native-qrcode-svg";
 
+import * as ImagePicker from "expo-image-picker";
+import { Platform } from "react-native";
+
 import { useAuth } from "../../context/AuthContext";
 
 import {
@@ -29,6 +32,7 @@ import {
   obtenerTokenEntregaPedido,
   obtenerCalificacionesPedido,
   crearCalificacionPedido,
+  subirComprobantePedido,
 } from "../../services/api";
 
 type Detalle = {
@@ -65,6 +69,11 @@ type Pedido = {
   envio: number;
   total: number;
 
+  // INFORMACIÓN DEL PAGO
+  metodoPago: string;
+  estadoPago: string;
+  comprobantePagoUrl?: string | null;
+
   detalles: Detalle[];
 };
 
@@ -79,6 +88,19 @@ export default function DetallePedidoScreen() {
   const { pedidoId } = route.params;
 
   const { token } = useAuth();
+
+  // ==========================================
+  // COMPROBANTES DE TRANSFERENCIA
+  // ==========================================
+
+  const [imagenComprobante, setImagenComprobante] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+
+  const [subiendoComprobante, setSubiendoComprobante] =
+    useState(false);
+
+  const [mensajePago, setMensajePago] =
+    useState("");
 
   const [pedido, setPedido] =
     useState<Pedido | null>(null);
@@ -391,6 +413,140 @@ export default function DetallePedidoScreen() {
   }
 
   // ==========================================
+  // SELECCIONAR COMPROBANTE
+  // ==========================================
+
+  async function seleccionarComprobante() {
+    try {
+      setMensajePago("");
+
+      if (Platform.OS !== "web") {
+        const permiso =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (!permiso.granted) {
+          setMensajePago(
+            "Debes permitir el acceso a tus imágenes."
+          );
+          return;
+        }
+      }
+
+      const resultado =
+        await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: false,
+          quality: 0.85,
+        });
+
+      if (resultado.canceled) {
+        return;
+      }
+
+      const imagen = resultado.assets[0];
+
+      const tipo =
+        imagen.mimeType ||
+        (Platform.OS === "web"
+          ? imagen.file?.type
+          : undefined);
+
+      const tiposPermitidos = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+      ];
+
+      if (!tipo || !tiposPermitidos.includes(tipo)) {
+        setMensajePago(
+          "Selecciona una imagen JPG, PNG o WEBP."
+        );
+        return;
+      }
+
+      if (
+        imagen.fileSize &&
+        imagen.fileSize > 5 * 1024 * 1024
+      ) {
+        setMensajePago(
+          "La imagen no puede superar los 5 MB."
+        );
+        return;
+      }
+
+      setImagenComprobante(imagen);
+      setMensajePago("Imagen seleccionada correctamente.");
+    } catch (error: any) {
+      setMensajePago(
+        error?.message ||
+        "No se pudo seleccionar la imagen."
+      );
+    }
+  }
+
+  // ==========================================
+  // ENVIAR COMPROBANTE A DELIVERYAPI
+  // ==========================================
+
+  async function enviarComprobante() {
+    if (!token || !pedido || !imagenComprobante) {
+      setMensajePago(
+        "Selecciona una imagen antes de enviarla."
+      );
+      return;
+    }
+
+    const pagoPendienteSinComprobante =
+    pedido.estadoPago === "Pendiente" &&
+    !pedido.comprobantePagoUrl;
+
+    const comprobanteRechazado =
+      pedido.estadoPago === "Rechazado";
+
+    if (
+      pedido.metodoPago !== "Transferencia" ||
+      pedido.estado !== "Pendiente" ||
+      (!pagoPendienteSinComprobante && !comprobanteRechazado)
+    ) {
+      setMensajePago(
+        "Este pedido ya no admite comprobantes."
+      );
+      await cargarDatos(false);
+      return;
+    }
+
+    try {
+      setSubiendoComprobante(true);
+      setMensajePago("Enviando comprobante...");
+
+      await subirComprobantePedido(
+        token,
+        pedido.id,
+        imagenComprobante
+      );
+
+      setImagenComprobante(null);
+
+      setMensajePago(
+        "Comprobante recibido. Pendiente de verificación administrativa."
+      );
+
+      await cargarDatos(false);
+    } catch (error: any) {
+      setMensajePago(
+        error?.message ||
+        "No se pudo enviar el comprobante."
+      );
+
+      // El pedido pudo cambiar de estado mientras
+      // se enviaba el archivo.
+      await cargarDatos(false);
+    } finally {
+      setSubiendoComprobante(false);
+    }
+  }
+
+  // ==========================================
   // PANTALLA DE CARGA
   // ==========================================
 
@@ -603,6 +759,136 @@ export default function DetallePedidoScreen() {
             </Text>
           </View>
         )}
+      </View>
+
+      {/* ==================================*/}
+      {/* PAGOS DEL PEDIDO */}
+      {/* ==================================*/}
+
+      <Text style={styles.sectionTitle}>
+        💳 Información del pago
+      </Text>
+
+      <View style={styles.card}>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>
+            Método de pago
+          </Text>
+
+          <Text style={styles.value}>
+            {pedido.metodoPago === "Transferencia"
+              ? "Transferencia bancaria"
+              : pedido.metodoPago === "Efectivo"
+              ? "Efectivo"
+              : pedido.metodoPago || "No disponible"}
+          </Text>
+        </View>
+
+        <View style={styles.row}> 
+          <Text style={styles.label}>
+            Estado del pago
+          </Text>
+
+          <Text style={styles.value}>
+            {pedido.estadoPago === "ComprobanteSubido"
+              ? "En revisión"
+              : pedido.estadoPago === "Verificado"
+              ? "Verificado"
+              : pedido.estadoPago === "Rechazado"
+              ? "Rechazado"
+              : pedido.estadoPago || "Pendiente"}
+          </Text>
+        </View>
+
+        {pedido.metodoPago === "Transferencia" && (
+          <View style={styles.block}>
+
+            <Text style={styles.label}>
+              Comprobante bancario
+            </Text>
+
+            <Text style={styles.blockValue}>
+              {pedido.estadoPago === "Rechazado"
+                ? "Comprobante rechazado"
+                : pedido.estadoPago === "Verificado"
+                ? "Transferencia verificada"
+                : pedido.estadoPago === "ComprobanteSubido"
+                ? "Comprobante recibido. En revisión."
+                : "Sin comprobante adjunto"}
+            </Text>
+
+            {pedido.estado === "Cancelado" ||
+            pedido.estado === "Rechazado" ? (
+              <Text style={styles.label}>
+                Este pedido ya no admite comprobantes.
+              </Text>
+                ) : (
+                  (pedido.estadoPago === "Pendiente" &&
+                    !pedido.comprobantePagoUrl) ||
+                  pedido.estadoPago === "Rechazado"
+                ) ? (
+              <View style={{ marginTop: 12 }}>
+
+  <TouchableOpacity
+    style={styles.refreshButton}
+    onPress={seleccionarComprobante}
+    disabled={subiendoComprobante}
+  >
+    <Text style={styles.refreshButtonText}>
+      Seleccionar comprobante
+    </Text>
+  </TouchableOpacity>
+
+  {imagenComprobante && (
+    <>
+      <Text
+        style={{
+          marginTop: 10,
+          marginBottom: 10,
+          color: "#333",
+        }}
+      >
+        Imagen: {imagenComprobante.fileName || "Comprobante seleccionado"}
+      </Text>
+
+      <TouchableOpacity
+        style={[
+          styles.refreshButton,
+          subiendoComprobante && styles.disabledButton,
+        ]}
+        onPress={enviarComprobante}
+        disabled={subiendoComprobante}
+      >
+        {subiendoComprobante ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.refreshButtonText}>
+            ENVIAR COMPROBANTE
+          </Text>
+        )}
+      </TouchableOpacity>
+    </>
+  )}
+
+</View>
+            ) : null}
+
+            {mensajePago !== "" && (
+              <Text
+                style={{
+                  marginTop: 12,
+                  color: "#333",
+                  fontWeight: "600",
+                }}
+              >
+                {mensajePago}
+              </Text>
+            )}
+
+          </View>
+        )}
+
       </View>
 
       {/* ================================== */}

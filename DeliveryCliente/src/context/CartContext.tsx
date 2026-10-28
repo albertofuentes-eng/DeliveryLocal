@@ -133,4 +133,4 @@ export function CartProvider({
 
 export function useCart() {
   return useContext(CartContext);
-}
+} 

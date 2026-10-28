@@ -1,4 +1,3 @@
-
 using DeliveryApi.Data;
 using DeliveryApi.DTOs;
 using DeliveryApi.Models;
@@ -107,10 +106,12 @@ public class PedidosController : ControllerBase
         // FASE 3: VALIDACIÓN DEL MÉTODO DE PAGO
         // ==========================================
 
+        // Metodos de pago disponibles en DeliveryLocal.
         var metodosPagoPermitidos = new[]
         {
             "Efectivo",
-            "Transferencia"
+            "Transferencia",
+            "Tarjeta"
         };
 
         var metodoPago = dto.MetodoPago?.Trim();
@@ -314,12 +315,15 @@ public class PedidosController : ControllerBase
         // FASE 3: DISTRIBUCIÓN DEL DINERO
         // ==========================================
 
-        // El comercio recibe el importe de sus productos.
+        // El restaurante recibe el 100% de sus productos.
         pedido.MontoComercio = subtotal;
 
-        // DeliveryLocal obtiene el ingreso bruto del envío.
-        // Si el cliente recoge su pedido, el envío es Q0.
-        pedido.MontoDeliveryLocal = pedido.Envio;
+        // DeliveryLocal recibe Q5 por cada envío de Q15.
+        // Si el cliente recoge su pedido, recibe Q0.
+        pedido.MontoDeliveryLocal = pedido.Envio > 0m ? 5m : 0m;
+
+        // El resto del envío corresponde al repartidor.
+        decimal montoRepartidor = pedido.Envio - pedido.MontoDeliveryLocal;
 
         // Todavía no se ha procesado ningún pago.
         pedido.EstadoPago = "Pendiente";
@@ -378,12 +382,26 @@ public class PedidosController : ControllerBase
             FechaCreacion = DateTime.UtcNow
         };
 
+        // Ganancia pendiente del repartidor.
+        // El repartidor específico se asignará posteriormente.
+        var liquidacionRepartidor = new LiquidacionPago
+        {
+            Pedido = pedido,
+            Beneficiario = "Repartidor",
+            MontoBruto = montoRepartidor,
+            Comision = 0m,
+            MontoNeto = montoRepartidor,
+            Estado = "Pendiente",
+            FechaCreacion = DateTime.UtcNow
+        };
+
         _context.Pedidos.Add(pedido);
 
         _context.LiquidacionesPago.AddRange(
-            liquidacionComercio,
-            liquidacionDeliveryLocal
-        );
+        liquidacionComercio,
+        liquidacionDeliveryLocal,
+        liquidacionRepartidor
+    );
 
         // EF Core guarda el pedido y sus liquidaciones
         // en una misma operación transaccional.
@@ -476,6 +494,12 @@ public class PedidosController : ControllerBase
                 p.Subtotal,
                 p.Envio,
                 p.Total,
+
+                // INFORMACIÓN DEL PAGO
+                p.MetodoPago,
+                p.EstadoPago,
+                p.ComprobantePagoUrl,
+
                 p.ComercioId,
                 comercio = p.Comercio.Nombre,
                 detalles = p.Detalles.Select(d => new
@@ -886,10 +910,15 @@ public class PedidosController : ControllerBase
                 p.ComercioId == usuario.ComercioId.Value
             )
             .Select(p => new
-            {
+{
                 p.Id,
                 p.Fecha,
                 p.Estado,
+
+                // Información del pago para DeliveryPOS
+                p.MetodoPago,
+                p.EstadoPago,
+
                 p.UsuarioId,
                 cliente = p.Usuario.Nombre,
                 correoCliente = p.Usuario.Correo,
@@ -929,6 +958,188 @@ public class PedidosController : ControllerBase
 
         return Ok(pedido);
     }
+
+
+    // ==========================================
+// ACTUALIZAR ESTADO DEL PEDIDO DESDE EL POS
+// PUT: api/Pedidos/{id}/estado
+// ==========================================
+
+[HttpPut("{id:int}/estado")]
+public async Task<IActionResult> ActualizarEstadoPedido(
+    int id,
+    [FromBody] ActualizarEstadoPedidoDto dto)
+{
+    var usuarioIdTexto = User.FindFirstValue(
+        ClaimTypes.NameIdentifier
+    );
+
+    if (!int.TryParse(usuarioIdTexto, out var usuarioId))
+        return Unauthorized(new { mensaje = "Usuario no válido." });
+
+    if (dto == null || string.IsNullOrWhiteSpace(dto.Estado))
+        return BadRequest(new { mensaje = "Debes indicar un estado." });
+
+    var nuevoEstado = dto.Estado.Trim();
+
+    var usuario = await _context.Usuarios
+        .FirstOrDefaultAsync(u => u.Id == usuarioId && u.Activo);
+
+    if (usuario == null)
+        return Unauthorized(new { mensaje = "Usuario no encontrado." });
+
+    if (usuario.Rol != "Comercio" || usuario.ComercioId == null)
+        return StatusCode(403, new
+        {
+            mensaje = "Solo el comercio responsable puede modificar el pedido."
+        });
+
+    var pedido = await _context.Pedidos
+        .AsNoTracking()
+        .FirstOrDefaultAsync(p =>
+            p.Id == id &&
+            p.ComercioId == usuario.ComercioId.Value
+        );
+
+    if (pedido == null)
+        return NotFound(new
+        {
+            mensaje = "Pedido no encontrado para este comercio."
+        });
+
+    var estadoActual = pedido.Estado;
+
+    // ==========================================
+    // SEGURIDAD: TRANSFERENCIAS BANCARIAS
+    // ==========================================
+
+    // SEGURIDAD: PAGOS QUE REQUIEREN CONFIRMACION
+    // No permitir que el restaurante procese pedidos
+    // con transferencia o tarjeta sin pago verificado.
+
+    bool requierePagoVerificado =
+        pedido.MetodoPago == "Transferencia" ||
+        pedido.MetodoPago == "Tarjeta";
+
+    if (requierePagoVerificado &&
+        pedido.EstadoPago != "Verificado")
+    {
+        return Conflict(new
+        {
+            mensaje = "El pago de este pedido todavía no ha sido confirmado."
+        });
+    }
+
+    bool transicionValida =
+        (estadoActual == "Pendiente" &&
+            (nuevoEstado == "Confirmado" || nuevoEstado == "Rechazado")) ||
+
+        (estadoActual == "Confirmado" &&
+            (nuevoEstado == "Preparando" || nuevoEstado == "Rechazado")) ||
+
+        (estadoActual == "Preparando" &&
+            nuevoEstado == "Listo para recoger");
+
+    if (!transicionValida)
+        return Conflict(new
+        {
+            mensaje = $"No se permite cambiar de '{estadoActual}' a '{nuevoEstado}'."
+        });
+
+    var limiteConfirmacion = DateTime.UtcNow.AddMinutes(-5);
+
+    // La regla original de 5 minutos se conserva
+    // para los pedidos que no son transferencia.
+    if (estadoActual == "Pendiente")
+    {
+        // Para pagos verificados, los 5 minutos se cuentan
+        // desde la confirmacion del pago, no desde la
+        // creacion del pedido.
+
+        bool tiempoVencido = requierePagoVerificado
+            ? pedido.EstadoPago == "Verificado" &&
+            (!pedido.FechaVerificacionPago.HasValue ||
+            pedido.FechaVerificacionPago.Value <= limiteConfirmacion)
+            : pedido.Fecha <= limiteConfirmacion;
+
+        if (tiempoVencido)
+        {
+            return Conflict(new
+            {
+                mensaje = "El tiempo de 5 minutos para responder este pedido ha vencido."
+            });
+        }
+    }
+
+    // ==========================================
+    // ACTUALIZACIÓN SEGURA DEL PEDIDO
+    // ==========================================
+
+    var consulta = _context.Pedidos
+        .Where(p =>
+            p.Id == id &&
+            p.ComercioId == usuario.ComercioId.Value &&
+            p.Estado == estadoActual
+        );
+
+    // Los pedidos de transferencia y tarjeta solo
+    // aparecen como procesables cuando el pago
+    // ha sido verificado.
+
+    consulta = consulta.Where(p =>
+        (
+            p.MetodoPago != "Transferencia" &&
+            p.MetodoPago != "Tarjeta"
+        )
+        ||
+        p.EstadoPago == "Verificado"
+    );
+
+    // Conservar el vencimiento de 5 minutos
+    // para pedidos que no son transferencia.
+    if (estadoActual == "Pendiente")
+    {
+        // Efectivo: 5 minutos desde la creacion.
+        // Transferencia y Tarjeta: 5 minutos desde
+        // la verificacion del pago.
+
+        consulta = consulta.Where(p =>
+            (
+                p.MetodoPago != "Transferencia" &&
+                p.MetodoPago != "Tarjeta" &&
+                p.Fecha > limiteConfirmacion
+            )
+            ||
+            (
+                (p.MetodoPago == "Transferencia" ||
+                p.MetodoPago == "Tarjeta") &&
+                p.EstadoPago == "Verificado" &&
+                p.FechaVerificacionPago != null &&
+                p.FechaVerificacionPago > limiteConfirmacion
+            )
+        );
+    }
+
+    var filasActualizadas = await consulta.ExecuteUpdateAsync(
+        setters => setters.SetProperty(
+            p => p.Estado,
+            nuevoEstado
+        )
+    );
+
+    if (filasActualizadas == 0)
+        return Conflict(new
+        {
+            mensaje = "El pedido cambió de estado. Actualiza la pantalla."
+        });
+
+    return Ok(new
+    {
+        mensaje = "Estado actualizado correctamente.",
+        pedidoId = id,
+        estado = nuevoEstado
+    });
+}
 
     // ==========================================
     // FASE 3: CONFIRMAR RECOGIDA EN COMERCIO

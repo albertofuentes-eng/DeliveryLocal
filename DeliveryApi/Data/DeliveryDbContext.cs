@@ -27,6 +27,10 @@ public class DeliveryDbContext : DbContext
     public DbSet<LiquidacionPago> LiquidacionesPago
         => Set<LiquidacionPago>();
 
+        // Solicitudes de devolución de dinero a clientes.
+    public DbSet<SolicitudReembolso> SolicitudesReembolso
+        => Set<SolicitudReembolso>();
+
     // FASE 4: Incidencias reportadas durante las entregas
     public DbSet<IncidenciaPedido> IncidenciasPedido
         => Set<IncidenciaPedido>();
@@ -545,6 +549,48 @@ public class DeliveryDbContext : DbContext
                 l.Beneficiario
             })
             .IsUnique();
+        });
+
+        // ==========================================
+        // SOLICITUDES DE REEMBOLSO
+        // ==========================================
+
+        modelBuilder.Entity<SolicitudReembolso>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+
+            entity.Property(r => r.Monto)
+                .HasColumnType("decimal(10,2)")
+                .IsRequired();
+
+            entity.Property(r => r.Moneda)
+                .HasMaxLength(3)
+                .HasDefaultValue("GTQ")
+                .IsRequired();
+
+            entity.Property(r => r.Estado)
+                .HasMaxLength(30)
+                .HasDefaultValue("Pendiente")
+                .IsRequired();
+
+            entity.Property(r => r.Motivo)
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(r => r.ReferenciaDevolucion)
+                .HasMaxLength(150);
+
+            entity.Property(r => r.ObservacionAdmin)
+                .HasMaxLength(1000);
+
+            entity.HasOne(r => r.Pedido)
+                .WithMany()
+                .HasForeignKey(r => r.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Evitar dos solicitudes automáticas para el mismo pedido.
+            entity.HasIndex(r => r.PedidoId)
+                .IsUnique();
         });
 
 

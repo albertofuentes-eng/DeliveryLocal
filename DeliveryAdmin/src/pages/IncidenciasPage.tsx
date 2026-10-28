@@ -6,6 +6,7 @@ import {
   obtenerIncidenciasAdmin,
   obtenerEvidenciaIncidenciaAdmin,
   resolverIncidenciaAdmin,
+  resolverYCancelarEntregaAdmin,
   type IncidenciaAdmin,
 } from "../services/api";
 
@@ -113,6 +114,68 @@ export default function IncidenciasPage() {
         err instanceof Error
           ? err.message
           : "No se pudo actualizar la incidencia."
+      );
+    } finally {
+      setProcesandoId(null);
+    }
+  }
+
+    async function cancelarEntregaPorIncidencia(
+    incidencia: IncidenciaAdmin
+  ) {
+    if (procesandoId !== null) return;
+
+    const resolucion = (observaciones[incidencia.id] || "").trim();
+
+    if (!resolucion || resolucion.length > 1000) {
+      setError("Escribí una observación válida antes de cancelar.");
+      return;
+    }
+
+    const token = localStorage.getItem("deliveryadmin_token");
+
+    if (!token) {
+      setError("Debes iniciar sesión.");
+      return;
+    }
+
+    const confirmado = window.confirm(
+      `ATENCIÓN: Vas a cancelar el pedido #${incidencia.pedidoId}.\n\n` +
+      `La incidencia #${incidencia.id} será resuelta y el repartidor ` +
+      `podrá quedar disponible.\n\n` +
+      `Esta acción NO confirma la entrega ni realiza reembolsos.\n\n` +
+      `¿Confirmás la cancelación?`
+    );
+
+    if (!confirmado) return;
+
+    try {
+      setProcesandoId(incidencia.id);
+      setError("");
+      setMensaje("");
+
+      await resolverYCancelarEntregaAdmin(
+        token,
+        incidencia.id,
+        resolucion
+      );
+
+      setMensaje(
+        `Incidencia #${incidencia.id} resuelta. ` +
+        `Pedido #${incidencia.pedidoId} cancelado correctamente.`
+      );
+
+      setObservaciones((anterior) => ({
+        ...anterior,
+        [incidencia.id]: "",
+      }));
+
+      await cargarIncidencias();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cancelar la entrega."
       );
     } finally {
       setProcesandoId(null);
@@ -353,6 +416,21 @@ export default function IncidenciasPage() {
                         >
                           Rechazar
                         </button>
+
+                        {incidencia.motivo === "ClienteAusente" && (
+                        <button
+                          type="button"
+                          style={styles.botonRechazar}
+                          disabled={procesandoId !== null}
+                          onClick={() =>
+                            void cancelarEntregaPorIncidencia(incidencia)
+                          }
+                        >
+                          {procesandoId === incidencia.id
+                            ? "Procesando..."
+                            : "Resolver y cancelar entrega"}
+                        </button>
+                      )}
                       </div>
                     </div>
                   )}

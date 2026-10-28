@@ -67,6 +67,7 @@ export type ComercioAdmin = {
   longitud: number | null;
   activo: boolean;
   fechaCreacion: string;
+  municipio: string;
 };
 
 export type ClienteAdmin = {
@@ -639,6 +640,56 @@ export type ResolverIncidenciaRequest = {
 };
 
 // ==========================================
+// RESOLVER INCIDENCIA Y CANCELAR ENTREGA
+// PUT: api/Incidencias/{id}/resolver-y-cancelar
+// ==========================================
+
+export async function resolverYCancelarEntregaAdmin(
+  token: string,
+  incidenciaId: number,
+  resolucion: string
+): Promise<void> {
+  if (!Number.isInteger(incidenciaId) || incidenciaId <= 0) {
+    throw new Error("La incidencia no es válida.");
+  }
+
+  if (!resolucion.trim() || resolucion.trim().length > 1000) {
+    throw new Error(
+      "Debes escribir una resolución de hasta 1000 caracteres."
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/Incidencias/${incidenciaId}/resolver-y-cancelar`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        estado: "Resuelta",
+        resolucion: resolucion.trim(),
+      }),
+    }
+  );
+
+  if (manejarSesionExpirada(response)) {
+    throw new Error("Sesión expirada.");
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+
+    throw new Error(
+      data?.mensaje ||
+      data?.message ||
+      "No se pudo cancelar la entrega."
+    );
+  }
+}
+
+// ==========================================
 // CONSULTAR INCIDENCIAS
 // GET: api/Incidencias/admin
 // ==========================================
@@ -929,4 +980,335 @@ export async function obtenerPagosAdmin(
   }
 
   return data;
+}
+
+// ==========================================
+// ADMIN: VER COMPROBANTE PRIVADO
+// ==========================================
+
+export async function obtenerComprobanteAdmin(
+  token: string,
+  pedidoId: number
+): Promise<Blob> {
+  const response = await fetch(
+    `${API_URL}/api/Pagos/admin/pedido/${pedidoId}/comprobante`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `No se pudo obtener el comprobante (${response.status}).`
+    );
+  }
+
+  return await response.blob();
+}
+
+// ==========================================
+// ADMIN: VERIFICAR TRANSFERENCIA
+// ==========================================
+
+export async function verificarTransferenciaAdmin(
+  token: string,
+  pedidoId: number
+) {
+  const response = await fetch(
+    `${API_URL}/api/Pagos/admin/pedido/${pedidoId}/verificar`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      data.mensaje ||
+      `No se pudo verificar la transferencia (${response.status}).`
+    );
+  }
+
+  return data;
+}
+
+export async function rechazarTransferenciaAdmin(
+  token: string,
+  pedidoId: number
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/api/Pagos/admin/pedido/${pedidoId}/rechazar`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+
+    throw new Error(
+      data.mensaje ||
+        `No se pudo rechazar el comprobante (${response.status}).`
+    );
+  }
+}
+
+// ==========================================
+// REEMBOLSOS - ADMINISTRADOR
+// ==========================================
+
+export type ReembolsoAdmin = {
+  id: number;
+  pedidoId: number;
+  monto: number;
+  moneda: string;
+  estado: string;
+  motivo: string;
+  fechaCreacion: string;
+  referenciaDevolucion: string | null;
+  observacionAdmin: string | null;
+  estadoPedido: string;
+  estadoPago: string;
+  metodoPago: string;
+};
+
+export async function obtenerReembolsosPendientes(
+  token: string
+): Promise<ReembolsoAdmin[]> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/pendientes`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!respuesta.ok) {
+    if (respuesta.status === 401) {
+      throw new Error("Tu sesión ha expirado.");
+    }
+
+    if (respuesta.status === 403) {
+      throw new Error(
+        "No tienes permisos para consultar reembolsos."
+      );
+    }
+
+    throw new Error(
+      `Error al consultar reembolsos (${respuesta.status}).`
+    );
+  }
+
+  const datos: {
+    total: number;
+    reembolsos: ReembolsoAdmin[];
+  } = await respuesta.json();
+
+  return datos.reembolsos;
+}
+
+// ==========================================
+// GUARDAR OBSERVACIÓN DE REEMBOLSO
+// ==========================================
+
+export async function guardarObservacionReembolso(
+  token: string,
+  reembolsoId: number,
+  observacion: string
+): Promise<void> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/${reembolsoId}/observacion`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        observacion,
+      }),
+    }
+  );
+
+  if (!respuesta.ok) {
+    if (respuesta.status === 401) {
+      throw new Error("Tu sesión ha expirado.");
+    }
+
+    if (respuesta.status === 403) {
+      throw new Error("No tienes permisos de administrador.");
+    }
+
+    const datos = await respuesta.json().catch(() => null);
+
+    throw new Error(
+      datos?.mensaje ??
+      `No se pudo guardar la observación (${respuesta.status}).`
+    );
+  }
+}
+
+// ==========================================
+// CERRAR REEMBOLSO QUE NO PROCEDE
+// ==========================================
+
+export async function marcarReembolsoNoProcede(
+  token: string,
+  reembolsoId: number
+): Promise<void> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/${reembolsoId}/no-procede`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!respuesta.ok) {
+    const datos = await respuesta.json().catch(() => null);
+
+    throw new Error(
+      datos?.mensaje ??
+      `No se pudo cerrar el reembolso (${respuesta.status}).`
+    );
+  }
+}
+
+// ==========================================
+// HISTORIAL DE REEMBOLSOS RESUELTOS
+// ==========================================
+
+export interface ReembolsoHistorial {
+  id: number;
+  pedidoId: number;
+  monto: number;
+  moneda: string;
+  estado: string;
+  motivo: string;
+  fechaCreacion: string;
+  fechaResolucion: string | null;
+  observacionAdmin: string | null;
+  referenciaDevolucion: string | null;
+}
+
+export async function obtenerHistorialReembolsos(
+  token: string
+): Promise<ReembolsoHistorial[]> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/historial`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!respuesta.ok) {
+    const datos = await respuesta.json().catch(() => null);
+
+    throw new Error(
+      datos?.mensaje ??
+      `No se pudo cargar el historial (${respuesta.status}).`
+    );
+  }
+
+  return await respuesta.json();
+}
+
+// ==========================================
+// REGISTRAR DEVOLUCIÓN BANCARIA REALIZADA
+// ==========================================
+
+export async function confirmarDevolucionReembolso(
+  token: string,
+  reembolsoId: number,
+  referenciaDevolucion: string
+): Promise<void> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/${reembolsoId}/confirmar-devolucion`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        referenciaDevolucion,
+        confirmoDevolucionReal: true,
+      }),
+    }
+  );
+
+  if (!respuesta.ok) {
+    const datos = await respuesta.json().catch(() => null);
+
+    throw new Error(
+      datos?.mensaje ??
+        `No se pudo registrar la devolución (${respuesta.status}).`
+    );
+  }
+}
+
+// ========================================
+// REGISTRAR RESTAURANTE Y CUENTA POS
+// ========================================
+
+export type NuevoRestaurante = {
+  nombre: string;
+  descripcion: string;
+  direccion: string;
+  municipio: string;
+  telefono: string;
+  encargadoNombre: string;
+  encargadoCorreo: string;
+  encargadoPassword: string;
+};
+
+export async function registrarRestauranteAdmin(
+  token: string,
+  datos: NuevoRestaurante
+) {
+  const response = await fetch(
+    `${API_URL}/api/AdminComercios`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(datos),
+    }
+  );
+
+  if (manejarSesionExpirada(response)) {
+    throw new Error("Sesión expirada. Inicia sesión nuevamente.");
+  }
+
+  const resultado = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      resultado?.mensaje ||
+      resultado?.message ||
+      "No se pudo registrar el restaurante."
+    );
+  }
+
+  return resultado;
 }

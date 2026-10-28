@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,15 +25,19 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 import { useAuth } from "../../context/AuthContext";
 
+
 import {
   crearIncidencia,
   subirEvidenciaIncidencia,
+  obtenerMisIncidencias,
   marcarPedidoEnCamino,
   marcarPedidoEntregado,
   marcarPedidoRecogido,
   obtenerMiPedido,
   type DetallePedidoRepartidor,
+  type IncidenciaRepartidor,
 } from "../../services/api";
+
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -60,6 +65,17 @@ export default function PedidoActivoScreen({
 
   const [mostrarIncidencia, setMostrarIncidencia] = useState(false);
 
+  
+  const [incidenciaActual, setIncidenciaActual] =
+    useState<IncidenciaRepartidor | null>(null);
+
+  const [consultandoIncidencia, setConsultandoIncidencia] =
+    useState(true);
+
+  const [errorConsultaIncidencia, setErrorConsultaIncidencia] =
+    useState(false);
+
+
   const [motivoIncidencia, setMotivoIncidencia] = useState("");
 
   const [descripcionIncidencia, setDescripcionIncidencia] = useState("");
@@ -78,6 +94,52 @@ export default function PedidoActivoScreen({
   useEffect(() => {
     cargarPedido();
   }, []);
+
+  
+useEffect(() => {
+  if (!token || !pedido?.id) {
+    return;
+  }
+
+  let activo = true;
+
+  async function consultarIncidencia() {
+    setConsultandoIncidencia(true);
+    setErrorConsultaIncidencia(false);
+
+    try {
+      const incidencias = await obtenerMisIncidencias(token!);
+
+      const encontrada = incidencias.find(
+        (incidencia) =>
+          incidencia.pedidoId === pedido!.id &&
+          incidencia.estado === "Pendiente"
+      );
+
+      if (activo) {
+        setIncidenciaActual(encontrada ?? null);
+      }
+    } catch (error) {
+      if (activo) {
+        setErrorConsultaIncidencia(true);
+        setMensaje(
+          "No se pudieron consultar las incidencias del pedido."
+        );
+      }
+    } finally {
+      if (activo) {
+        setConsultandoIncidencia(false);
+      }
+    }
+  }
+
+  consultarIncidencia();
+
+  return () => {
+    activo = false;
+  };
+}, [token, pedido?.id]);
+
 
   async function cargarPedido() {
     if (!token) {
@@ -106,49 +168,64 @@ export default function PedidoActivoScreen({
     }
   }
 
-  function confirmarAccion() {
+    function confirmarAccion() {
     if (!pedido || procesando) {
       return;
     }
 
+    // Confirmación compatible con Expo Web y Android.
+    function solicitarConfirmacion(
+      titulo: string,
+      mensaje: string,
+      accion: () => void
+    ) {
+      if (Platform.OS === "web") {
+        const confirmado = window.confirm(
+          `${titulo}\n\n${mensaje}`
+        );
+
+        if (confirmado) {
+          accion();
+        }
+
+        return;
+      }
+
+      Alert.alert(titulo, mensaje, [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Confirmar",
+          onPress: accion,
+        },
+      ]);
+    }
+
+    // 1. El repartidor recoge el pedido.
     if (pedido.estado === "Asignado a repartidor") {
-      Alert.alert(
+      solicitarConfirmacion(
         "Confirmar recogida",
         "¿Ya recibiste el pedido del comercio?",
-        [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-          {
-            text: "Confirmar",
-            onPress: ejecutarRecogido,
-          },
-        ]
+        ejecutarRecogido
       );
 
       return;
     }
 
+    // 2. El repartidor comienza el recorrido.
     if (pedido.estado === "Recogido") {
-      Alert.alert(
+      solicitarConfirmacion(
         "Iniciar entrega",
         "¿Deseas comenzar el recorrido hacia el cliente?",
-        [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-          {
-            text: "Iniciar",
-            onPress: ejecutarEnCamino,
-          },
-        ]
+        ejecutarEnCamino
       );
 
       return;
     }
 
+    // 3. El repartidor confirma la entrega.
     if (pedido.estado === "En camino") {
       const codigo = codigoEntrega.trim();
 
@@ -156,23 +233,17 @@ export default function PedidoActivoScreen({
         setMensaje(
           "Solicita al cliente su código de entrega antes de confirmar."
         );
+
         return;
       }
 
-      Alert.alert(
+      solicitarConfirmacion(
         "Confirmar entrega",
         "¿Ya entregaste el pedido al cliente y verificaste su código?",
-        [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-          {
-            text: "Confirmar",
-            onPress: ejecutarEntregado,
-          },
-        ]
+        ejecutarEntregado
       );
+
+      return;
     }
   }
 
@@ -269,8 +340,20 @@ export default function PedidoActivoScreen({
   // FASE 4: GUARDAR INCIDENCIA
   // ==========================================
 
-  async function ejecutarReporteIncidencia() {
+    async function ejecutarReporteIncidencia() {
     if (!token || !pedido || procesando) {
+      return;
+    }
+
+    // Evitar registrar incidencias duplicadas.
+    if (
+      consultandoIncidencia ||
+      errorConsultaIncidencia ||
+      incidenciaActual
+    ) {
+      setMensaje(
+        "Ya existe una incidencia o no se pudo verificar el estado. No envíes otro reporte."
+      );
       return;
     }
 
@@ -351,7 +434,59 @@ export default function PedidoActivoScreen({
     }
   }
 
-  // ==========================================
+  
+async function adjuntarFotoIncidenciaExistente() {
+  if (!token || !incidenciaActual || procesando) {
+    return;
+  }
+
+  if (incidenciaActual.estado !== "Pendiente") {
+    setMensaje("Esta incidencia ya fue finalizada.");
+    return;
+  }
+
+  if (incidenciaActual.evidenciaUrl) {
+    setMensaje("Esta incidencia ya tiene una fotografía.");
+    return;
+  }
+
+  if (!fotoIncidencia) {
+    setMensaje("Primero selecciona una fotografía.");
+    return;
+  }
+
+  try {
+    setProcesando(true);
+    setMensaje("");
+
+    await subirEvidenciaIncidencia(
+      token,
+      incidenciaActual.id,
+      fotoIncidencia
+    );
+
+    setFotoIncidencia(null);
+
+    setIncidenciaActual({
+      ...incidenciaActual,
+      evidenciaUrl: "Fotografía registrada",
+    });
+
+    setMensaje(
+      "Fotografía adjuntada correctamente. El administrador ya puede revisar la evidencia."
+    );
+  } catch (error: any) {
+    setMensaje(
+      error?.message ||
+        "No se pudo adjuntar la fotografía."
+    );
+  } finally {
+    setProcesando(false);
+  }
+}
+
+
+// ==========================================
 // FASE 4: SELECCIONAR FOTOGRAFÍA
 // ==========================================
 
@@ -843,22 +978,105 @@ async function seleccionarFotoIncidencia() {
               lo sucedido para que un administrador revise
               el caso.
             </Text>
+            
+            
+          {consultandoIncidencia && (
+            <Text style={styles.incidenciaDescripcion}>
+              Consultando incidencias del pedido...
+            </Text>
+          )}
 
-            <Pressable
-              style={styles.incidenciaBoton}
-              disabled={procesando}
-              onPress={() =>
-                setMostrarIncidencia(!mostrarIncidencia)
-              }
-            >
-              <Text style={styles.incidenciaBotonTexto}>
-                {mostrarIncidencia
-                  ? "CERRAR FORMULARIO"
-                  : "REPORTAR PROBLEMA"}
+          {errorConsultaIncidencia && (
+            <Text style={styles.incidenciaDescripcion}>
+              No se pudieron consultar las incidencias.
+              No envíes otro reporte hasta recuperar la conexión.
+            </Text>
+          )}
+
+          {incidenciaActual && (
+            <View style={styles.incidenciaFormulario}>
+              <Text style={styles.incidenciaTitulo}>
+                Incidencia #{incidenciaActual.id} registrada
               </Text>
-            </Pressable>
 
-            {mostrarIncidencia && (
+              <Text style={styles.incidenciaDescripcion}>
+                Estado: {incidenciaActual.estado}
+              </Text>
+
+              <Text style={styles.incidenciaDescripcion}>
+                Motivo: {incidenciaActual.motivo}
+              </Text>
+
+              <Text style={styles.incidenciaDescripcion}>
+                {incidenciaActual.descripcion}
+              </Text>
+
+              {!incidenciaActual.evidenciaUrl ? (
+                <View style={styles.evidenciaContenedor}>
+                  <Text style={styles.incidenciaEtiqueta}>
+                    Fotografía pendiente de adjuntar
+                  </Text>
+
+                  <Pressable
+                    style={styles.evidenciaBoton}
+                    onPress={seleccionarFotoIncidencia}
+                    disabled={procesando}
+                  >
+                    <Text style={styles.evidenciaBotonTexto}>
+                      SELECCIONAR FOTOGRAFÍA
+                    </Text>
+                  </Pressable>
+
+                  {fotoIncidencia && (
+                    <Image
+                      source={{ uri: fotoIncidencia }}
+                      style={styles.evidenciaImagen}
+                      resizeMode="cover"
+                    />
+                  )}
+
+                  <Pressable
+                    style={styles.incidenciaEnviar}
+                    onPress={adjuntarFotoIncidenciaExistente}
+                    disabled={procesando || !fotoIncidencia}
+                  >
+                    <Text style={styles.incidenciaEnviarTexto}>
+                      {procesando
+                        ? "SUBIENDO FOTOGRAFÍA..."
+                        : "ADJUNTAR FOTOGRAFÍA"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Text style={styles.incidenciaDescripcion}>
+                  Fotografía registrada correctamente.
+                  Pendiente de revisión administrativa.
+                </Text>
+              )}
+            </View>
+          )}
+
+        
+              {!incidenciaActual &&
+                !consultandoIncidencia &&
+                !errorConsultaIncidencia && (
+                  <Pressable
+                    style={styles.incidenciaBoton}
+                    disabled={procesando}
+                    onPress={() =>
+                      setMostrarIncidencia(!mostrarIncidencia)
+                    }
+                  >
+                    <Text style={styles.incidenciaBotonTexto}>
+                      {mostrarIncidencia
+                        ? "CERRAR FORMULARIO"
+                        : "REPORTAR PROBLEMA"}
+                    </Text>
+                  </Pressable>
+                )}
+
+
+            {!incidenciaActual && !consultandoIncidencia && !errorConsultaIncidencia && mostrarIncidencia && (
               <View style={styles.incidenciaFormulario}>
                 <Text style={styles.incidenciaEtiqueta}>
                   Motivo de la incidencia

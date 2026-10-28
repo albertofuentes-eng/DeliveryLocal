@@ -77,6 +77,10 @@ public class Pedido
 
     public string? ComprobantePagoUrl { get; set; }
 
+    // Fecha UTC en que el administrador verificó el pago.
+    // Se utilizará para calcular el tiempo de aceptación del comercio.
+    public DateTime? FechaVerificacionPago { get; set; }
+
     // ==========================================
     // FASE 3: DISTRIBUCIÓN DEL DINERO
     // ==========================================

@@ -1,4 +1,6 @@
+
 import React, { useEffect, useState } from "react";
+
 import {
   View,
   Text,
@@ -8,20 +10,22 @@ import {
   ActivityIndicator,
 } from "react-native";
 
-import { useRoute } from "@react-navigation/native";
+import {
+  useRoute,
+  useNavigation,
+} from "@react-navigation/native";
+
 import { useCart } from "../../context/CartContext";
 import { obtenerProductosPorComercio } from "../../services/api";
 import { Producto } from "../../models/Producto";
 
 export default function RestaurantScreen() {
   const route = useRoute<any>();
+  const navigation = useNavigation();
 
-  const {
-    comercioId,
-    nombre,
-  } = route.params;
+  const { comercioId, nombre } = route.params;
 
-  const { agregarProducto } = useCart();
+  const { agregarProducto, totalItems } = useCart();
 
   const [productos, setProductos] =
     useState<Producto[]>([]);
@@ -32,17 +36,23 @@ export default function RestaurantScreen() {
   const [error, setError] =
     useState("");
 
+  // Regresar sin recargar la aplicación.
+  function regresar() {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  }
+
   useEffect(() => {
     async function cargarProductos() {
       try {
         const data =
-          await obtenerProductosPorComercio(
-            comercioId
-          );
+          await obtenerProductosPorComercio(comercioId);
 
         setProductos(data);
       } catch (error) {
         console.log(error);
+
         setError(
           "No se pudieron cargar los productos."
         );
@@ -56,9 +66,28 @@ export default function RestaurantScreen() {
 
   return (
     <View style={styles.container}>
+
+      {/* Botón para regresar */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={regresar}
+      >
+        <Text style={styles.backButtonText}>
+          ← Volver a restaurantes
+        </Text>
+      </TouchableOpacity>
+
+      {/* Nombre del restaurante */}
       <Text style={styles.title}>
         {nombre}
       </Text>
+
+      {/* Indicador del carrito */}
+      <View style={styles.cartInfo}>
+        <Text style={styles.cartInfoText}>
+          🛒 Productos en carrito: {totalItems}
+        </Text>
+      </View>
 
       {cargando && (
         <ActivityIndicator size="large" />
@@ -84,6 +113,7 @@ export default function RestaurantScreen() {
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
+
             <Text style={styles.nombre}>
               {item.nombre}
             </Text>
@@ -98,14 +128,13 @@ export default function RestaurantScreen() {
 
             <TouchableOpacity
               style={styles.button}
-              onPress={() =>
-                agregarProducto(item)
-              }
+              onPress={() => agregarProducto(item)}
             >
               <Text style={styles.buttonText}>
-                Agregar
+                Agregar al carrito
               </Text>
             </TouchableOpacity>
+
           </View>
         )}
       />
@@ -120,11 +149,36 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
+  backButton: {
+    marginBottom: 18,
+    paddingVertical: 10,
+    alignSelf: "flex-start",
+  },
+
+  backButtonText: {
+    color: "#E53935",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#E53935",
+    marginBottom: 15,
+  },
+
+  cartInfo: {
+    backgroundColor: "#FFF3F3",
+    padding: 12,
+    borderRadius: 10,
     marginBottom: 20,
+  },
+
+  cartInfoText: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#E53935",
   },
 
   card: {
@@ -153,7 +207,7 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: "#E53935",
     marginTop: 10,
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
   },
 
