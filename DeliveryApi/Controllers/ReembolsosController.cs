@@ -12,10 +12,12 @@ namespace DeliveryApi.Controllers;
 public class ReembolsosController : ControllerBase
 {
     private readonly DeliveryDbContext _context;
+    private readonly DeliveryApi.Services.RecurrenteService _recurrente;
 
-    public ReembolsosController(DeliveryDbContext context)
+    public ReembolsosController(DeliveryDbContext context, DeliveryApi.Services.RecurrenteService recurrente)
     {
         _context = context;
+        _recurrente = recurrente;
     }
 
     // ==========================================
@@ -332,6 +334,158 @@ public class ReembolsosController : ControllerBase
     }
 
     // ==========================================
+    // DEVOLUCION DE TARJETA - SOLO RECURRENTE SANDBOX
+    [HttpPost("{id:int}/solicitar-tarjeta")]
+    public async Task<IActionResult> SolicitarReembolsoTarjeta(
+        int id,
+        [FromBody] ConfirmacionTarjetaDto confirmacion,
+        CancellationToken cancellationToken)
+    {
+        if (confirmacion?.Confirmacion != "CONFIRMAR_REEMBOLSO_SANDBOX")
+        {
+            return BadRequest(new
+            {
+                mensaje = "Se requiere confirmación explícita de reembolso Sandbox."
+            });
+        }
+        var solicitud = await _context.SolicitudesReembolso
+            .AsNoTracking()
+            .Include(r => r.Pedido)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+        if (solicitud == null)
+            return NotFound(new { mensaje = "Solicitud no encontrada." });
+
+        var pedido = solicitud.Pedido;
+
+        if (solicitud.Estado != "Pendiente" ||
+            solicitud.ReferenciaDevolucion != null ||
+            solicitud.Monto <= 0 ||
+            solicitud.Monto != pedido.Total ||
+            solicitud.Moneda != "GTQ" ||
+            pedido.Estado != "Cancelado" ||
+            pedido.EstadoPago != "Verificado" ||
+            pedido.MetodoPago != "Tarjeta" ||
+            pedido.ProveedorPago != "Recurrente")
+        {
+            return Conflict(new
+            {
+                mensaje = "El reembolso no cumple las condiciones."
+            });
+        }
+
+        var transaccion = await _context
+            .Set<DeliveryApi.Models.TransaccionPago>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t =>
+                t.PedidoId == pedido.Id &&
+                t.Estado == "Aprobado" &&
+                t.Proveedor == "Recurrente" &&
+                t.ReferenciaExterna == pedido.ReferenciaPagoExterno &&
+                t.Monto == solicitud.Monto &&
+                t.Moneda == "GTQ",
+                cancellationToken);
+
+        if (transaccion == null ||
+            string.IsNullOrWhiteSpace(transaccion.ReferenciaExterna))
+        {
+            return Conflict(new
+            {
+                mensaje = "No se encontro una transaccion aprobada."
+            });
+        }
+
+        string intentId;
+
+        try
+        {
+            intentId = await _recurrente.ObtenerIntentCheckoutAsync(
+                transaccion.ReferenciaExterna, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return StatusCode(502, new
+            {
+                mensaje = "No se pudo verificar el pago con Recurrente. No se solicito una devolucion."
+            });
+        }
+
+        // Bloqueo persistente: solamente una llamada puede reservar
+        // la solicitud antes de contactar a Recurrente.
+        int reservadas = await _context.SolicitudesReembolso
+            .Where(r =>
+                r.Id == id &&
+                r.Estado == "Pendiente" &&
+                r.ReferenciaDevolucion == null &&
+                r.Pedido.Estado == "Cancelado" &&
+                r.Pedido.EstadoPago == "Verificado" &&
+                r.Pedido.MetodoPago == "Tarjeta")
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(r => r.Estado, "EnProceso")
+                .SetProperty(r => r.ObservacionAdmin,
+                    "Reembolso reservado. Pendiente de conciliacion."),
+                cancellationToken);
+
+        if (reservadas != 1)
+            return Conflict(new
+            {
+                mensaje = "La solicitud ya fue tomada o resuelta."
+            });
+
+        string clave = $"deliverylocal-sandbox-refund-{id}";
+
+        try
+        {
+            var resultado = await _recurrente.SolicitarReembolsoAsync(
+                intentId, clave, cancellationToken);
+
+            bool completado = resultado.Estado == "succeeded";
+            DateTime? fecha = completado ? DateTime.UtcNow : null;
+
+            int actualizadas = await _context.SolicitudesReembolso
+                .Where(r => r.Id == id && r.Estado == "EnProceso")
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(r => r.Estado,
+                        completado ? "Reembolsado" : "EnProceso")
+                    .SetProperty(r => r.ReferenciaDevolucion, resultado.Id)
+                    .SetProperty(r => r.ObservacionAdmin,
+                        $"Recurrente: {resultado.Estado}")
+                    .SetProperty(r => r.FechaResolucion, fecha),
+                    cancellationToken);
+
+            if (actualizadas != 1)
+                return StatusCode(500, new
+                {
+                    mensaje = "Recurrente respondio, pero fallo el registro local. Requiere conciliacion."
+                });
+
+            return Ok(new
+            {
+                solicitudId = id,
+                referencia = resultado.Id,
+                estadoProveedor = resultado.Estado,
+                confirmado = completado,
+                mensaje = completado
+                    ? "Devolucion confirmada por Recurrente."
+                    : "Reembolso pendiente de conciliacion."
+            });
+        }
+        catch (Exception)
+        {
+            // No regresar a Pendiente:
+            // el proveedor pudo recibir la solicitud.
+            return StatusCode(502, new
+            {
+                solicitudId = id,
+                estado = "EnProceso",
+                mensaje = "Resultado incierto. Revisar Recurrente antes de reintentar."
+            });
+        }
+    }
+    public class ConfirmacionTarjetaDto
+    {
+        public string Confirmacion { get; set; } = string.Empty;
+    }
     // DTO: OBSERVACIÓN
     // ==========================================
 

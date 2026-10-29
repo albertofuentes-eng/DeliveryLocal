@@ -10,6 +10,7 @@ import {
   marcarReembolsoNoProcede,
   obtenerHistorialReembolsos,
   confirmarDevolucionReembolso,
+  solicitarReembolsoTarjeta,
   type ReembolsoAdmin,
   type ReembolsoHistorial,
 } from "../services/api";
@@ -118,6 +119,60 @@ export default function ReembolsosPage() {
   // REGISTRAR DEVOLUCIÓN YA REALIZADA
   // ==========================================
 
+  async function devolverTarjeta(reembolso: ReembolsoAdmin) {
+    if (
+      reembolso.metodoPago !== "Tarjeta" ||
+      reembolso.estadoPedido !== "Cancelado" ||
+      reembolso.estadoPago !== "Verificado" ||
+      procesandoDevolucionId !== null
+    ) {
+      return;
+    }
+
+    const token = localStorage.getItem("deliveryadmin_token");
+    if (!token) {
+      setError("Debes iniciar sesion nuevamente.");
+      return;
+    }
+
+    const confirmado = window.confirm(
+      `¿Solicitar el reembolso SANDBOX de Q ${Number(reembolso.monto).toFixed(2)} ` +
+      `del pedido #${reembolso.pedidoId}?\n\n` +
+      "Esta accion contactara a Recurrente. No es solo un registro."
+    );
+    if (!confirmado) return;
+
+    const frase = window.prompt(
+      "Para confirmar la solicitud, escribi DEVOLVER:"
+    );
+    if (frase !== "DEVOLVER") return;
+
+    try {
+      setProcesandoDevolucionId(reembolso.id);
+      setError("");
+      setMensaje("");
+
+      const resultado = await solicitarReembolsoTarjeta(
+        token, reembolso.id
+      );
+
+      setMensaje(
+        resultado.confirmado
+          ? `Reembolso #${reembolso.id} confirmado por Recurrente Sandbox.`
+          : `Reembolso #${reembolso.id} en estado ${resultado.estadoProveedor}. Requiere conciliacion.`
+      );
+
+      await Promise.all([cargarReembolsos(), cargarHistorial()]);
+    } catch (err) {
+      setError(
+        (err instanceof Error ? err.message : "Error inesperado.") +
+        " No repitas la solicitud sin revisar su estado."
+      );
+      await Promise.all([cargarReembolsos(), cargarHistorial()]);
+    } finally {
+      setProcesandoDevolucionId(null);
+    }
+  }
   async function registrarDevolucion(
     reembolso: ReembolsoAdmin
   ) {
@@ -624,9 +679,35 @@ export default function ReembolsosPage() {
                           </div>
 
                         {/* ========================================== */}
+                        {reembolso.metodoPago === "Tarjeta" &&
+                          reembolso.estadoPedido === "Cancelado" &&
+                          reembolso.estadoPago === "Verificado" && (
+                            <div style={{ marginTop: 16 }}>
+                              <button
+                                type="button"
+                                disabled={procesando}
+                                onClick={() => void devolverTarjeta(reembolso)}
+                                style={{
+                                  padding: "12px 16px",
+                                  borderRadius: 8,
+                                  border: 0,
+                                  background: "#166534",
+                                  color: "#fff",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  opacity: procesando ? 0.5 : 1,
+                                }}
+                              >
+                                {procesandoDevolucionId === reembolso.id
+                                  ? "Procesando en Recurrente..."
+                                  : "Solicitar reembolso con tarjeta (Sandbox)"}
+                              </button>
+                            </div>
+                          )}
                         {/* REGISTRAR DEVOLUCIÓN REALIZADA */}
                         {/* ========================================== */}
 
+                        {reembolso.metodoPago === "Transferencia" && (
                         <div
                           style={{
                             marginTop: "22px",
@@ -762,6 +843,7 @@ export default function ReembolsosPage() {
                               : "Registrar devolución realizada"}
                           </button>
                         </div>
+                        )}
                         </div>
                       </td>
                     </tr>

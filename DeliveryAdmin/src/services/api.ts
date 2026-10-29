@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.DEV
+﻿const API_URL = import.meta.env.DEV
   ? "http://localhost:5022"
   : "https://deliverylocal-api-2026-edfda6abe8byf2dg.mexicocentral-01.azurewebsites.net";
 
@@ -1082,6 +1082,39 @@ export type ReembolsoAdmin = {
   metodoPago: string;
 };
 
+export async function solicitarReembolsoTarjeta(
+  token: string,
+  reembolsoId: number
+): Promise<{
+  confirmado: boolean;
+  estadoProveedor: string;
+  referencia: string;
+}> {
+  const respuesta = await fetch(
+    `${API_URL}/api/Reembolsos/${reembolsoId}/solicitar-tarjeta`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        confirmacion: "CONFIRMAR_REEMBOLSO_SANDBOX",
+      }),
+    }
+  );
+
+  const datos = await respuesta.json().catch(() => null);
+
+  if (!respuesta.ok) {
+    throw new Error(
+      datos?.mensaje ||
+        `No se pudo solicitar la devolucion (${respuesta.status}).`
+    );
+  }
+
+  return datos;
+}
 export async function obtenerReembolsosPendientes(
   token: string
 ): Promise<ReembolsoAdmin[]> {

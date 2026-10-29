@@ -13,6 +13,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Linking,
 } from "react-native";
 
 import {
@@ -33,6 +34,7 @@ import {
   obtenerCalificacionesPedido,
   crearCalificacionPedido,
   subirComprobantePedido,
+  crearCheckoutTarjeta,
 } from "../../services/api";
 
 type Detalle = {
@@ -99,6 +101,7 @@ export default function DetallePedidoScreen() {
   const [subiendoComprobante, setSubiendoComprobante] =
     useState(false);
 
+  const [retomandoPago, setRetomandoPago] = useState(false);
   const [mensajePago, setMensajePago] =
     useState("");
 
@@ -547,6 +550,40 @@ export default function DetallePedidoScreen() {
   }
 
   // ==========================================
+  async function continuarPagoTarjeta() {
+    if (!token || !pedido ||
+        pedido.metodoPago !== "Tarjeta" ||
+        pedido.estado !== "Pendiente" ||
+        pedido.estadoPago !== "Pendiente" ||
+        retomandoPago) {
+      return;
+    }
+
+    try {
+      setRetomandoPago(true);
+
+      const checkout = await crearCheckoutTarjeta(token, pedido.id);
+
+      if (Platform.OS === "web") {
+        window.location.assign(checkout.checkoutUrl);
+      } else {
+        await Linking.openURL(checkout.checkoutUrl);
+      }
+    } catch (error: any) {
+      const mensaje = error?.message ||
+        "No se pudo recuperar el pago.";
+
+      if (Platform.OS === "web") {
+        window.alert(mensaje);
+      } else {
+        Alert.alert("No se pudo continuar el pago", mensaje);
+      }
+
+      await cargarDatos(false);
+    } finally {
+      setRetomandoPago(false);
+    }
+  }
   // PANTALLA DE CARGA
   // ==========================================
 
@@ -801,6 +838,23 @@ export default function DetallePedidoScreen() {
           </Text>
         </View>
 
+        {pedido.metodoPago === "Tarjeta" &&
+          pedido.estado === "Pendiente" &&
+          pedido.estadoPago === "Pendiente" && (
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={continuarPagoTarjeta}
+              disabled={retomandoPago}
+            >
+              {retomandoPago ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.refreshButtonText}>
+                  Continuar pago con tarjeta
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         {pedido.metodoPago === "Transferencia" && (
           <View style={styles.block}>
 

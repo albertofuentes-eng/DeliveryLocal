@@ -91,24 +91,75 @@ public class PagosTarjetaController : ControllerBase
             });
         }
 
-        // Evitar crear otro checkout si ya existe
-        // un intento registrado como pendiente o aprobado.
-        bool existeIntento = await _context
+        // Recuperar el checkout existente sin generar otro cobro.
+        var intentoExistente = await _context
             .Set<TransaccionPago>()
-            .AnyAsync(
-                t => t.PedidoId == pedido.Id &&
-                     (t.Estado == "Pendiente" ||
-                      t.Estado == "Aprobado"),
-                cancellationToken);
+            .Where(t => t.PedidoId == pedido.Id &&
+                        t.Proveedor == "Recurrente" &&
+                        (t.Estado == "Pendiente" ||
+                         t.Estado == "Aprobado"))
+            .OrderByDescending(t => t.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (existeIntento)
+        if (intentoExistente != null)
         {
-            return Conflict(new
+            if (intentoExistente.Estado != "Pendiente" ||
+                string.IsNullOrWhiteSpace(intentoExistente.ReferenciaExterna) ||
+                pedido.ReferenciaPagoExterno != intentoExistente.ReferenciaExterna ||
+                !Uri.TryCreate(intentoExistente.Observacion, UriKind.Absolute, out var urlGuardada) ||
+                urlGuardada.Scheme != Uri.UriSchemeHttps ||
+                urlGuardada.Host != "app.recurrente.com")
             {
-                mensaje = "Este pedido ya tiene un intento de pago registrado."
+                return Conflict(new
+                {
+                    mensaje = "El pago existente requiere revisión."
+                });
+            }
+
+            RecurrenteEstadoCheckout consulta;
+
+            try
+            {
+                consulta = await _recurrente.ConsultarEstadoCheckoutAsync(
+                    intentoExistente.ReferenciaExterna,
+                    cancellationToken);
+            }
+            catch (Exception ex) when (
+                ex is InvalidOperationException ||
+                ex is System.Net.Http.HttpRequestException ||
+                ex is TaskCanceledException ||
+                ex is System.Text.Json.JsonException)
+            {
+                return StatusCode(502, new
+                {
+                    mensaje = "No fue posible consultar el pago existente."
+                });
+            }
+
+            if (consulta.Estado != "unpaid")
+            {
+                return Conflict(new
+                {
+                    mensaje = consulta.Estado == "paid"
+                        ? "El pago ya fue recibido. Espera la confirmación."
+                        : consulta.Estado == "payment_in_progress"
+                            ? "El pago está procesándose."
+                            : "El checkout venció y requiere revisión."
+                });
+            }
+
+            return Ok(new
+            {
+                pedidoId = pedido.Id,
+                transaccionId = intentoExistente.Id,
+                monto = pedido.Total,
+                moneda = "GTQ",
+                checkoutId = intentoExistente.ReferenciaExterna,
+                checkoutUrl = intentoExistente.Observacion,
+                estadoPago = pedido.EstadoPago,
+                recuperado = true
             });
         }
-
         RecurrenteCheckout checkout;
 
         try
@@ -141,6 +192,7 @@ public class PagosTarjetaController : ControllerBase
             Estado = "Pendiente",
             Proveedor = "Recurrente",
             ReferenciaExterna = checkout.Id,
+            Observacion = checkout.CheckoutUrl,
             FechaCreacion = DateTime.UtcNow
         };
 
