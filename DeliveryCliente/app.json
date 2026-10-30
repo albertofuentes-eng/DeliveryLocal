@@ -36,7 +36,9 @@
         {
           "locationWhenInUsePermission": "DeliveryCliente necesita acceder a tu ubicación para saber dónde entregar tu pedido."
         }
-      ]
+      ],
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {

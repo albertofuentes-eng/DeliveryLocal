@@ -883,3 +883,73 @@ export async function crearCheckoutTarjeta(
 
   return data as CheckoutTarjeta;
 }
+
+// ========================================
+// GOOGLE LOGIN - DELIVERYCLIENTE
+// ========================================
+
+export async function iniciarSesionGoogle(
+  idToken: string
+) {
+  const response = await fetch(
+    `${API_URL}/api/Auth/google`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+        `No se pudo iniciar sesión con Google (${response.status}).`
+    );
+  }
+
+  if (!data?.token || !data?.usuario) {
+    throw new Error(
+      "El servidor no devolvió una sesión válida."
+    );
+  }
+
+  return data;
+}
+
+// ========================================
+// VINCULAR GOOGLE CON CUENTA EXISTENTE
+// ========================================
+
+export async function vincularCuentaGoogle(
+  tokenJwt: string,
+  idTokenGoogle: string
+) {
+  const response = await fetch(
+    `${API_URL}/api/Auth/google/vincular`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenJwt}`,
+      },
+      body: JSON.stringify({
+        idToken: idTokenGoogle,
+      }),
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.mensaje ||
+      `No se pudo vincular Google (${response.status}).`
+    );
+  }
+
+  return data;
+}

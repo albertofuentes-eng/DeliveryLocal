@@ -12,6 +12,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
+import { Platform } from "react-native";
+import GoogleLoginButton from "./GoogleLoginButton";
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
@@ -127,6 +129,8 @@ export default function LoginScreen() {
           </Text>
         )}
       </TouchableOpacity>
+
+            <GoogleLoginButton />
 
       <TouchableOpacity
         onPress={() =>

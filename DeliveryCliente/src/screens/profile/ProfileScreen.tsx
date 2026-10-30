@@ -29,6 +29,9 @@ import {
   type SolicitudRepartidorCliente,
 } from "../../services/api";
 
+import { Platform } from "react-native";
+import GoogleVincularWebButton from "./GoogleVincularWebButton";
+
 export default function ProfileScreen() {
   const navigation =
     useNavigation<any>();
@@ -361,6 +364,10 @@ export default function ProfileScreen() {
               />
             </TouchableOpacity>
           ) : null}
+
+                    {Platform.OS === "web" && (
+            <GoogleVincularWebButton />
+          )}
 
           <TouchableOpacity
             style={

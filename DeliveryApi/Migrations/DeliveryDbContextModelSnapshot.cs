@@ -792,6 +792,10 @@ namespace DeliveryApi.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("GoogleSub")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -818,6 +822,10 @@ namespace DeliveryApi.Migrations
 
                     b.HasIndex("Correo")
                         .IsUnique();
+
+                    b.HasIndex("GoogleSub")
+                        .IsUnique()
+                        .HasFilter("[GoogleSub] IS NOT NULL");
 
                     b.ToTable("Usuarios");
                 });

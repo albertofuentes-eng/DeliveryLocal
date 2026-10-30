@@ -1,4 +1,4 @@
-namespace DeliveryApi.Models;
+﻿namespace DeliveryApi.Models;
 
 public class Usuario
 {
@@ -9,6 +9,8 @@ public class Usuario
     public string Correo { get; set; } = string.Empty;
 
     public string PasswordHash { get; set; } = string.Empty;
+
+    public string? GoogleSub { get; set; }
 
     public string? Telefono { get; set; }
 

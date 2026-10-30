@@ -1,4 +1,4 @@
-using DeliveryApi.Models;
+﻿using DeliveryApi.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeliveryApi.Data;
@@ -76,6 +76,13 @@ public class DeliveryDbContext : DbContext
 
             entity.HasIndex(u => u.Correo)
                 .IsUnique();
+
+            entity.Property(u => u.GoogleSub)
+                .HasMaxLength(255);
+
+            entity.HasIndex(u => u.GoogleSub)
+                .IsUnique()
+                .HasFilter("[GoogleSub] IS NOT NULL");
 
             entity.Property(u => u.PasswordHash)
                 .IsRequired();

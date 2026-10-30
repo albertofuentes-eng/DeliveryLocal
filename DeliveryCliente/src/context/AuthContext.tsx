@@ -11,6 +11,7 @@ import { Platform } from "react-native";
 
 import {
   iniciarSesion as loginApi,
+  iniciarSesionGoogle as loginGoogleApi,
   registrarTokenPush,
 } from "../services/api";
 
@@ -34,6 +35,10 @@ type AuthContextType = {
   iniciarSesion: (
     correo: string,
     password: string
+  ) => Promise<void>;
+
+  iniciarSesionGoogle: (
+    idToken: string
   ) => Promise<void>;
 
   cerrarSesion: () => Promise<void>;
@@ -167,6 +172,27 @@ export function AuthProvider({
     await registrarPush(data.token);
   }
 
+    async function iniciarSesionGoogle(
+    idToken: string
+  ) {
+    const data = await loginGoogleApi(idToken);
+
+    await almacenamiento.guardar(
+      TOKEN_KEY,
+      data.token
+    );
+
+    await almacenamiento.guardar(
+      USER_KEY,
+      JSON.stringify(data.usuario)
+    );
+
+    setToken(data.token);
+    setUsuario(data.usuario);
+
+    await registrarPush(data.token);
+  }
+
   async function cerrarSesion() {
     await almacenamiento.eliminar(TOKEN_KEY);
     await almacenamiento.eliminar(USER_KEY);
@@ -177,11 +203,12 @@ export function AuthProvider({
 
   return (
     <AuthContext.Provider
-      value={{
+            value={{
         usuario,
         token,
         cargandoSesion,
         iniciarSesion,
+        iniciarSesionGoogle,
         cerrarSesion,
       }}
     >
